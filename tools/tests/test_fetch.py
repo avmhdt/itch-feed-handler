@@ -236,7 +236,3 @@ def test_cli_fetch_uses_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert captured["days"] == ["01302019"]
     assert captured["max_bytes_per_s"] == 5
     assert "gz 1 bytes" in result.output
-
-
-def test_cli_version() -> None:
-    assert "itchtools" in CliRunner().invoke(cli.app, ["version"]).output

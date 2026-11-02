@@ -83,3 +83,17 @@ WSL ext4. The Python virtual environment is at `~/build/itch-feed-handler/venv`
    `.gitattributes` forces LF.
 5. **Required status check.** The `ci` job gathers every other job, so branch protection requires
    only that one context, as in the sibling repos.
+6. **Fixture size.** The spec asks for about 200,000 messages and under 1 MB, which cannot both
+   hold: ITCH averages about 33 bytes per framed message. The 1 MB limit is the enforced one
+   (NFR-09 and the pre-commit hook), so `mini_day.itchbin` has about 25,000 messages (828 KB) and
+   still contains every message type. `gen-fixture --messages` can write larger days on demand.
+7. **`itchy` coverage.** `itchy` 0.3.4 has no parser for `h` and `O` and panics on them. As R-03
+   allows, `ref_counts` strips those frames in front of `itchy` and counts them from the frame
+   header, and its JSON lists them under `framed_only`. Everything else is counted by `itchy`.
+8. **`itch stats` additions.** Added `--date`, `--lenient`, and a `system_events` key used for
+   AC-W-10. Wall time goes to the log, because NFR-04 needs byte-identical JSON across runs.
+9. **Eastern Time rule.** `TradingDay` applies the US daylight-saving rule in force since 2007
+   directly instead of reading a tz database. ITCH 5.0 dates from 2013, so every sample day is
+   covered, and `itchtools.timeutil` cross-checks the rule against `zoneinfo`.
+10. **Locate table.** The directory lives in `state/instruments.hpp`, one module beyond the spec's
+    list, so that `itch symbols` can use it without pulling in the book code.

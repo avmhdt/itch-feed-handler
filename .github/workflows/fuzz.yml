@@ -6,7 +6,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  placeholder:
+  nightly:
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        harness: [parser]
     steps:
-      - run: echo "Nightly fuzzing arrives with the harnesses at M2 and M6."
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cpp
+      - run: cmake --preset fuzz
+      - run: cmake --build --preset fuzz
+      - name: fuzz_${{ matrix.harness }}, 30 minutes
+        env:
+          HARNESS: ${{ matrix.harness }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/corpus"
+          cp "fuzz/corpus/$HARNESS"/* "$RUNNER_TEMP/corpus/"
+          "$HOME/build/itch-feed-handler/fuzz/fuzz/fuzz_$HARNESS" -max_total_time=1800 -timeout=1             -rss_limit_mb=2048 -print_final_stats=1 "$RUNNER_TEMP/corpus"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: crash-${{ matrix.harness }}
+          path: crash-*

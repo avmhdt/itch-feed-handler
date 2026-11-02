@@ -9,7 +9,8 @@ inline constexpr int kExitOk = 0;
 inline constexpr int kExitUsage = 2;
 inline constexpr int kExitMalformed = 3;
 
-/// Registers a subcommand; `exit_code` receives the result of the command when it runs.
+/// Each registers a subcommand; `exit_code` receives the result of the command when it runs.
 void register_stats(CLI::App& app, int& exit_code);
+void register_symbols(CLI::App& app, int& exit_code);
 
 }  // namespace itch::cli

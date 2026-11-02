@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     itch_days: str = "01302019,03272019,01302020"
     itch_keep_gz: bool = True
     itch_max_bytes_per_s: int = 10_000_000
+    itch_ref_parser_bin: Path = (
+        Path.home() / "build" / "itch-feed-handler" / "cargo" / "release" / "ref_counts"
+    )
 
     @property
     def raw_dir(self) -> Path:
