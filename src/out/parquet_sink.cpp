@@ -336,9 +336,8 @@ std::shared_ptr<arrow::Table> snapshots_table(const std::vector<SnapshotRecord>&
 
 template <std::size_t N>
 std::string text_of(const std::array<char, N>& chars) {
-  return std::string(
-      chars.data(),
-      static_cast<std::size_t>(std::find(chars.begin(), chars.end(), '\0') - chars.begin()));
+  const auto end = std::find(chars.begin(), chars.end(), '\0');
+  return {chars.begin(), end};
 }
 
 std::shared_ptr<arrow::Table> state_table(const std::vector<StateRecord>& rows,

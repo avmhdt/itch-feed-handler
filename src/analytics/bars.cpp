@@ -7,8 +7,8 @@ namespace itch {
 
 namespace {
 
-constexpr std::int64_t kOpenNs = (9 * 3600 + 30 * 60) * 1'000'000'000LL;
-constexpr std::int64_t kCloseNs = 16 * 3600 * 1'000'000'000LL;
+constexpr std::int64_t kOpenNs = ((9LL * 3600) + (30LL * 60)) * 1'000'000'000LL;
+constexpr std::int64_t kCloseNs = 16LL * 3600 * 1'000'000'000LL;
 
 }  // namespace
 
