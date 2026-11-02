@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        harness: [parser]
+        harness: [parser, book]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-cpp
