@@ -23,8 +23,12 @@ include(Sanitizers)
 CPMAddPackage(NAME CLI11 GITHUB_REPOSITORY CLIUtils/CLI11 VERSION 2.4.2 SYSTEM YES
               OPTIONS "CLI11_BUILD_TESTS OFF" "CLI11_BUILD_EXAMPLES OFF")
 CPMAddPackage(NAME spdlog GITHUB_REPOSITORY gabime/spdlog VERSION 1.14.1 SYSTEM YES)
+CPMAddPackage(NAME tomlplusplus GITHUB_REPOSITORY marzer/tomlplusplus VERSION 3.4.0 SYSTEM YES)
 CPMAddPackage(NAME unordered_dense GITHUB_REPOSITORY martinus/unordered_dense VERSION 4.4.0
               SYSTEM YES)
+
+find_package(Arrow REQUIRED)
+find_package(Parquet REQUIRED)
 
 add_subdirectory(src)
 

@@ -10,12 +10,14 @@ from typing import Annotated
 import typer
 
 from itchtools import fetch as fetch_module
-from itchtools import gen_fixture, py_baseline, validate
+from itchtools import gen_fixture, outputs, py_baseline, ref_daily, validate
 from itchtools.settings import REPO_ROOT, Settings
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
 VALIDATION_DIR = REPO_ROOT / "results" / "validation"
+CONFIGS_DIR = REPO_ROOT / "configs"
+WATCHLIST = CONFIGS_DIR / "watchlist.txt"
 
 
 def date_from_file(path: Path) -> str:
@@ -105,6 +107,82 @@ def validate_counts(
     typer.echo(f"{date}: {'PASS' if comparison.matches else 'FAIL'}")
     if not comparison.matches:
         raise typer.Exit(1)
+
+
+@app.command("ref-daily")
+def ref_daily_command(
+    date: Annotated[str, typer.Option(help="Trading date, YYYY-MM-DD.")],
+    watchlist: Annotated[Path, typer.Option(help="Watchlist file.")] = WATCHLIST,
+    source: Annotated[
+        str | None, typer.Option(help="sharadar or stooq; default sharadar when a key is set.")
+    ] = None,
+) -> None:
+    """Extract official close and volume for the watchlist (DQ-10)."""
+    settings = Settings()
+    symbols = ref_daily.read_watchlist(watchlist)
+    symbol_map = ref_daily.read_symbol_map(CONFIGS_DIR / "symbol_map.csv")
+    chosen = source or ("sharadar" if settings.sharadar_api_key else "stooq")
+    if chosen == "sharadar":
+        if not settings.sharadar_api_key:
+            typer.echo("SHARADAR_API_KEY is not set", err=True)
+            raise typer.Exit(1)
+        rows = ref_daily.fetch_sharadar(symbols, date, settings.sharadar_api_key, symbol_map)
+    elif chosen == "stooq":
+        raw = ref_daily.load_stooq(settings.stooq_dir, symbols, symbol_map)
+        splits = ref_daily.read_splits(CONFIGS_DIR / "splits.csv")
+        rows = ref_daily.stooq_rows(raw, date, splits)
+    else:
+        raise typer.BadParameter(f"unknown source {chosen}")
+    path = ref_daily.write_daily(rows, settings.reference_dir, date)
+    typer.echo(f"{path}: {len(rows)} of {len(symbols)} symbols from {chosen}")
+
+
+@app.command("validate-close")
+def validate_close(
+    date: Annotated[str, typer.Option(help="Trading date, YYYY-MM-DD.")],
+    watchlist: Annotated[Path, typer.Option(help="Watchlist file.")] = WATCHLIST,
+) -> None:
+    """AC-W-02: compare closing-cross prices with official closes."""
+    settings = Settings()
+    comparison = validate.validate_close(
+        date,
+        ref_daily.read_watchlist(watchlist),
+        settings.itch_data_dir.expanduser(),
+        ref_daily.daily_path(settings.reference_dir, date),
+        VALIDATION_DIR,
+    )
+    total = len(comparison.results)
+    typer.echo(f"{date}: {comparison.matches} of {total} match")
+    if not comparison.passed:
+        raise typer.Exit(1)
+
+
+@app.command("validate-volume")
+def validate_volume(
+    date: Annotated[str, typer.Option(help="Trading date, YYYY-MM-DD.")],
+    watchlist: Annotated[Path, typer.Option(help="Watchlist file.")] = WATCHLIST,
+) -> None:
+    """AC-W-03: internal volume consistency and the venue-share ratio."""
+    settings = Settings()
+    comparison = validate.validate_volume(
+        date,
+        ref_daily.read_watchlist(watchlist),
+        settings.itch_data_dir.expanduser(),
+        ref_daily.daily_path(settings.reference_dir, date),
+        VALIDATION_DIR,
+    )
+    typer.echo(f"{date}: {'PASS' if comparison.passed else 'FAIL'}")
+    if not comparison.passed:
+        raise typer.Exit(1)
+
+
+@app.command("content-hash")
+def content_hash(
+    date: Annotated[str, typer.Option(help="Trading date, YYYY-MM-DD.")],
+    root: Annotated[Path | None, typer.Option(help="Data root.")] = None,
+) -> None:
+    """Print an order-independent hash of a day's Parquet rows (NFR-04)."""
+    typer.echo(outputs.content_hash(root or Settings().itch_data_dir.expanduser(), date))
 
 
 if __name__ == "__main__":

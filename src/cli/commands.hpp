@@ -16,5 +16,7 @@ void register_symbols(CLI::App& app, int& exit_code);
 void register_book_at(CLI::App& app, int& exit_code);
 void register_check(CLI::App& app, int& exit_code);
 void register_digest(CLI::App& app, int& exit_code);
+void register_build(CLI::App& app, int& exit_code);
+void register_bars(CLI::App& app, int& exit_code);
 
 }  // namespace itch::cli

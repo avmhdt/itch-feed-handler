@@ -8,3 +8,15 @@ ts_utc,git_hash,machine,compiler,flags,file,mode,repeat,messages,wall_s,msgs_per
 2026-11-02T05:22:05Z,894e841,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302019.NASDAQ_ITCH50,check,1,368366634,279.397,1318434,,,not a benchmark; shared machine
 2026-11-02T05:25:49Z,894e841,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,03272019.NASDAQ_ITCH50,check,1,422264305,223.635,1888185,,,not a benchmark; shared machine
 2026-11-02T05:29:51Z,894e841,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302020.NASDAQ_ITCH50,check,1,423285709,241.658,1751590,,,not a benchmark; shared machine
+2026-11-02T05:34:42Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302019.NASDAQ_ITCH50,check,1,368366634,72.9006,5052999,,,reproduce.sh validation
+2026-11-02T05:37:53Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302019.NASDAQ_ITCH50,build,1,368366634,191.528,1923304,,,reproduce.sh watchlist Parquet
+2026-11-02T05:43:30Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,03272019.NASDAQ_ITCH50,check,1,422264305,299.713,1408896,,,reproduce.sh validation
+2026-11-02T05:46:40Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,03272019.NASDAQ_ITCH50,build,1,422264305,189.332,2230285,,,reproduce.sh watchlist Parquet
+2026-11-02T05:49:51Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302020.NASDAQ_ITCH50,check,1,423285709,167.449,2527849,,,reproduce.sh validation
+2026-11-02T05:55:58Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302020.NASDAQ_ITCH50,build,1,423285709,367.246,1152594,,,reproduce.sh watchlist Parquet
+2026-11-02T06:01:06Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302019.NASDAQ_ITCH50,check,1,368366634,215.444,1709802,,,reproduce.sh validation
+2026-11-02T06:05:32Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302019.NASDAQ_ITCH50,build,1,368366634,265.77,1386035,,,reproduce.sh watchlist Parquet
+2026-11-02T06:09:59Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,03272019.NASDAQ_ITCH50,check,1,422264305,233.47,1808645,,,reproduce.sh validation
+2026-11-02T06:14:54Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,03272019.NASDAQ_ITCH50,build,1,422264305,294.559,1433547,,,reproduce.sh watchlist Parquet
+2026-11-02T06:19:36Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302020.NASDAQ_ITCH50,check,1,423285709,250.643,1688799,,,reproduce.sh validation
+2026-11-02T06:23:50Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302020.NASDAQ_ITCH50,build,1,423285709,253.932,1666925,,,reproduce.sh watchlist Parquet

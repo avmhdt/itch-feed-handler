@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 
 #include "itch/util/digest.hpp"
 
@@ -31,6 +32,12 @@ BookManager::BookManager(const BookConfig& config, Sinks* sinks)
       settling_since_ns_(LocateTable::kSize, 0),
       sinks_(sinks) {
   broken_matches_.reserve(kMaxBrokenMatches);
+  if (sinks_ != nullptr) {
+    last_bbo_.resize(LocateTable::kSize);
+    if (sinks_->enabled(Dataset::Snapshots)) {
+      next_snapshot_ns_ = sinks_->options().snapshot_interval_ns;
+    }
+  }
 }
 
 const OrderBook* BookManager::book(std::string_view symbol) const noexcept {
@@ -41,6 +48,7 @@ const OrderBook* BookManager::book(std::string_view symbol) const noexcept {
 void BookManager::on(const SystemEvent& message) noexcept {
   note_time(message.timestamp_ns());
   state_.on(message);
+  emit_state(0, message.timestamp_ns(), 'S', message.event_code(), {}, "{}");
   ++seq_;
 }
 
@@ -48,6 +56,9 @@ void BookManager::on(const StockDirectory& message) {
   note_time(message.timestamp_ns());
   instruments_.define(message);
   books_[message.stock_locate()].reserve(kInitialLevels);
+  if (sinks_ != nullptr) {
+    sinks_->define(instruments_[message.stock_locate()]);
+  }
   ++seq_;
 }
 
@@ -55,6 +66,8 @@ void BookManager::on(const TradingAction& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
   state_.on(message);
+  emit_state(message.stock_locate(), message.timestamp_ns(), 'H', message.trading_state(),
+             trim_right(message.reason()), "{}");
   ++seq_;
 }
 
@@ -62,33 +75,67 @@ void BookManager::on(const RegSho& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
   state_.on(message);
+  emit_state(message.stock_locate(), message.timestamp_ns(), 'Y', message.action(), {}, "{}");
   ++seq_;
 }
 
 void BookManager::on(const ParticipantPosition& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
+  if (out(message.stock_locate())) {
+    std::array<char, 80> details{};
+    std::snprintf(details.data(), details.size(),
+                  R"({"mpid":"%.4s","primary_market_maker":"%c","market_maker_mode":"%c"})",
+                  message.mpid().data(), message.primary_market_maker(),
+                  message.market_maker_mode());
+    emit_state(message.stock_locate(), message.timestamp_ns(), 'L', message.participant_state(), {},
+               details.data());
+  }
   ++seq_;
 }
 
 void BookManager::on(const MwcbDecline& message) noexcept {
   note_time(message.timestamp_ns());
+  if (sinks_ != nullptr) {
+    std::array<char, 100> details{};
+    std::snprintf(details.data(), details.size(), R"({"level1":%llu,"level2":%llu,"level3":%llu})",
+                  static_cast<unsigned long long>(message.level1()),
+                  static_cast<unsigned long long>(message.level2()),
+                  static_cast<unsigned long long>(message.level3()));
+    emit_state(0, message.timestamp_ns(), 'V', ' ', {}, details.data());
+  }
   ++seq_;
 }
 
 void BookManager::on(const MwcbStatus& message) noexcept {
   note_time(message.timestamp_ns());
+  emit_state(0, message.timestamp_ns(), 'W', message.breached_level(), {}, "{}");
   ++seq_;
 }
 
 void BookManager::on(const IpoQuoting& message) noexcept {
   note_time(message.timestamp_ns());
+  if (out(message.stock_locate())) {
+    std::array<char, 80> details{};
+    std::snprintf(details.data(), details.size(), R"({"release_time_s":%u,"ipo_price":%u})",
+                  message.release_time_s(), message.ipo_price());
+    emit_state(message.stock_locate(), message.timestamp_ns(), 'K', message.release_qualifier(), {},
+               details.data());
+  }
   ++seq_;
 }
 
 void BookManager::on(const LuldCollar& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
+  if (out(message.stock_locate())) {
+    std::array<char, 100> details{};
+    std::snprintf(details.data(), details.size(),
+                  R"({"reference":%u,"upper":%u,"lower":%u,"extension":%u})",
+                  message.reference_price(), message.upper_price(), message.lower_price(),
+                  message.extension());
+    emit_state(message.stock_locate(), message.timestamp_ns(), 'J', ' ', {}, details.data());
+  }
   ++seq_;
 }
 
@@ -96,6 +143,12 @@ void BookManager::on(const OperationalHalt& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
   state_.on(message);
+  if (out(message.stock_locate())) {
+    std::array<char, 32> details{};
+    std::snprintf(details.data(), details.size(), R"({"market_code":"%c"})", message.market_code());
+    emit_state(message.stock_locate(), message.timestamp_ns(), 'h', message.action(), {},
+               details.data());
+  }
   ++seq_;
 }
 
@@ -118,6 +171,20 @@ void BookManager::add_order(const AddOrder& message, std::uint32_t mpid) {
   books_[locate].link(index);
   symbol_counters_[locate].added += message.shares();
   check_book(locate, message.timestamp_ns());
+  if (out(locate)) {
+    emit_l3({.ts = sinks_->day().to_utc_ns(message.timestamp_ns()),
+             .seq = static_cast<std::int64_t>(seq_),
+             .price_ticks = message.price(),
+             .qty = message.shares(),
+             .order_id = message.order_ref(),
+             .mpid = mpid,
+             .tracking_number = message.tracking_number(),
+             .locate = locate,
+             .side = static_cast<std::int8_t>(node.side),
+             .event = 'a',
+             .msg_type = static_cast<char>(message.type())});
+    emit_bbo(locate, message.timestamp_ns());
+  }
   ++seq_;
 }
 
@@ -146,12 +213,17 @@ void BookManager::on(const OrderExecuted& message) {
     ++seq_;
     return;
   }
-  const std::uint16_t locate = store_[index].locate;
+  const OrderNode resting = store_[index];
+  const std::uint16_t locate = resting.locate;
   const std::uint32_t taken = take_shares(index, message.executed_shares());
   SymbolCounters& counters = symbol_counters_[locate];
   counters.executed += taken;
   counters.volume += taken;
   check_book(locate, message.timestamp_ns());
+  if (out(locate)) {
+    emit_exec(resting, message.order_ref(), taken, message.match_number(), resting.price, 'Y', 'E',
+              message.tracking_number(), message.timestamp_ns());
+  }
   ++seq_;
 }
 
@@ -163,7 +235,8 @@ void BookManager::on(const OrderExecutedPrice& message) {
     ++seq_;
     return;
   }
-  const std::uint16_t locate = store_[index].locate;
+  const OrderNode resting = store_[index];
+  const std::uint16_t locate = resting.locate;
   const std::uint32_t taken = take_shares(index, message.executed_shares());
   SymbolCounters& counters = symbol_counters_[locate];
   counters.executed += taken;
@@ -172,6 +245,11 @@ void BookManager::on(const OrderExecutedPrice& message) {
     counters.volume += taken;
   }
   check_book(locate, message.timestamp_ns());
+  if (out(locate)) {
+    emit_exec(resting, message.order_ref(), taken, message.match_number(),
+              message.execution_price(), message.printable(), 'C', message.tracking_number(),
+              message.timestamp_ns());
+  }
   ++seq_;
 }
 
@@ -183,9 +261,24 @@ void BookManager::on(const OrderCancel& message) {
     ++seq_;
     return;
   }
-  const std::uint16_t locate = store_[index].locate;
-  symbol_counters_[locate].cancelled += take_shares(index, message.cancelled_shares());
+  const OrderNode resting = store_[index];
+  const std::uint16_t locate = resting.locate;
+  const std::uint32_t taken = take_shares(index, message.cancelled_shares());
+  symbol_counters_[locate].cancelled += taken;
   check_book(locate, message.timestamp_ns());
+  if (out(locate)) {
+    emit_l3({.ts = sinks_->day().to_utc_ns(message.timestamp_ns()),
+             .seq = static_cast<std::int64_t>(seq_),
+             .price_ticks = resting.price,
+             .qty = taken,
+             .order_id = message.order_ref(),
+             .tracking_number = message.tracking_number(),
+             .locate = locate,
+             .side = static_cast<std::int8_t>(resting.side),
+             .event = 'c',
+             .msg_type = 'X'});
+    emit_bbo(locate, message.timestamp_ns());
+  }
   ++seq_;
 }
 
@@ -197,12 +290,25 @@ void BookManager::on(const OrderDelete& message) {
     ++seq_;
     return;
   }
-  const OrderNode& node = store_[index];
-  const std::uint16_t locate = node.locate;
-  symbol_counters_[locate].deleted += node.shares;
+  const OrderNode resting = store_[index];
+  const std::uint16_t locate = resting.locate;
+  symbol_counters_[locate].deleted += resting.shares;
   books_[locate].unlink(index);
   store_.release(index);
   check_book(locate, message.timestamp_ns());
+  if (out(locate)) {
+    emit_l3({.ts = sinks_->day().to_utc_ns(message.timestamp_ns()),
+             .seq = static_cast<std::int64_t>(seq_),
+             .price_ticks = resting.price,
+             .qty = resting.shares,
+             .order_id = message.order_ref(),
+             .tracking_number = message.tracking_number(),
+             .locate = locate,
+             .side = static_cast<std::int8_t>(resting.side),
+             .event = 'd',
+             .msg_type = 'D'});
+    emit_bbo(locate, message.timestamp_ns());
+  }
   ++seq_;
 }
 
@@ -214,11 +320,11 @@ void BookManager::on(const OrderReplace& message) {
     ++seq_;
     return;
   }
-  const OrderNode& node = store_[index];
-  const std::uint16_t locate = node.locate;
+  const OrderNode resting = store_[index];
+  const std::uint16_t locate = resting.locate;
   OrderBook& book = books_[locate];
   SymbolCounters& counters = symbol_counters_[locate];
-  counters.replaced_out += node.shares;
+  counters.replaced_out += resting.shares;
   if (!store_.rename(index, message.new_ref())) [[unlikely]] {
     // DQ-04: the new reference is already live, so the replacement cannot be represented. The
     // shares of the original still leave the book, which keeps the accounting identity.
@@ -230,6 +336,21 @@ void BookManager::on(const OrderReplace& message) {
     counters.added += message.shares();
   }
   check_book(locate, message.timestamp_ns());
+  if (out(locate)) {
+    emit_l3({.ts = sinks_->day().to_utc_ns(message.timestamp_ns()),
+             .seq = static_cast<std::int64_t>(seq_),
+             .price_ticks = message.price(),
+             .qty = message.shares(),
+             .order_id = message.original_ref(),
+             .new_order_id = message.new_ref(),
+             .mpid = resting.mpid,
+             .tracking_number = message.tracking_number(),
+             .locate = locate,
+             .side = static_cast<std::int8_t>(resting.side),
+             .event = 'r',
+             .msg_type = 'U'});
+    emit_bbo(locate, message.timestamp_ns());
+  }
   ++seq_;
 }
 
@@ -237,6 +358,15 @@ void BookManager::on(const Trade& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
   symbol_counters_[message.stock_locate()].volume += message.shares();
+  if (out(message.stock_locate()) && sinks_->enabled(Dataset::Trades)) {
+    sinks_->push(TradeRecord{.ts = sinks_->day().to_utc_ns(message.timestamp_ns()),
+                             .seq = static_cast<std::int64_t>(seq_),
+                             .price_ticks = message.price(),
+                             .qty = message.shares(),
+                             .match_id = message.match_number(),
+                             .locate = message.stock_locate(),
+                             .source = 'P'});
+  }
   ++seq_;
 }
 
@@ -251,6 +381,16 @@ void BookManager::on(const CrossTrade& message) noexcept {
   // A book still crossed at the print is unwinding this cross; see docs/protocol-notes.md#crosses.
   if (books_[message.stock_locate()].touching()) {
     settling_since_ns_[message.stock_locate()] = message.timestamp_ns() + 1;
+  }
+  if (out(message.stock_locate()) && sinks_->enabled(Dataset::Trades)) {
+    sinks_->push(TradeRecord{.ts = sinks_->day().to_utc_ns(message.timestamp_ns()),
+                             .seq = static_cast<std::int64_t>(seq_),
+                             .price_ticks = message.cross_price(),
+                             .qty = shares,
+                             .match_id = message.match_number(),
+                             .locate = message.stock_locate(),
+                             .source = 'Q',
+                             .cross_type = message.cross_type()});
   }
   ++seq_;
 }
@@ -268,19 +408,153 @@ void BookManager::on(const Noii& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
   state_.on(message);
+  if (out(message.stock_locate()) && sinks_->enabled(Dataset::Noii)) {
+    sinks_->push(
+        NoiiRecord{.ts = sinks_->day().to_utc_ns(message.timestamp_ns()),
+                   .seq = static_cast<std::int64_t>(seq_),
+                   .paired_shares = static_cast<std::int64_t>(message.paired_shares()),
+                   .imbalance_shares = static_cast<std::int64_t>(message.imbalance_shares()),
+                   .far_price_ticks = message.far_price(),
+                   .near_price_ticks = message.near_price(),
+                   .ref_price_ticks = message.reference_price(),
+                   .locate = message.stock_locate(),
+                   .msg_type = 'I',
+                   .direction = message.imbalance_direction(),
+                   .cross_type = message.cross_type(),
+                   .price_variation = message.price_variation()});
+  }
   ++seq_;
 }
 
 void BookManager::on(const Rpii& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
+  emit_state(message.stock_locate(), message.timestamp_ns(), 'N', message.interest_flag(), {},
+             "{}");
   ++seq_;
 }
 
 void BookManager::on(const Dlcr& message) noexcept {
   note_time(message.timestamp_ns());
   check_locate(message.stock_locate());
+  if (out(message.stock_locate()) && sinks_->enabled(Dataset::Noii)) {
+    NoiiRecord record{.ts = sinks_->day().to_utc_ns(message.timestamp_ns()),
+                      .seq = static_cast<std::int64_t>(seq_),
+                      .ref_price_ticks = message.near_execution_price(),
+                      .locate = message.stock_locate(),
+                      .msg_type = 'O'};
+    std::snprintf(record.details.data(), record.details.size(),
+                  R"({"eligible":"%c","min":%u,"max":%u,"lower":%u,"upper":%u,"near_time":%llu})",
+                  message.open_eligibility(), message.minimum_allowable_price(),
+                  message.maximum_allowable_price(), message.lower_price_collar(),
+                  message.upper_price_collar(),
+                  static_cast<unsigned long long>(message.near_execution_time()));
+    sinks_->push(record);
+  }
   ++seq_;
+}
+
+void BookManager::emit_l3(const L3Record& record) noexcept {
+  if (sinks_->enabled(Dataset::BookL3)) {
+    sinks_->push(record);
+  }
+}
+
+void BookManager::emit_exec(const OrderNode& node, std::uint64_t ref, std::uint32_t shares,
+                            std::uint64_t match, std::int64_t price, char printable, char msg_type,
+                            std::uint16_t tracking, std::uint64_t timestamp_ns) noexcept {
+  const std::int64_t ts = sinks_->day().to_utc_ns(timestamp_ns);
+  emit_l3({.ts = ts,
+           .seq = static_cast<std::int64_t>(seq_),
+           .price_ticks = price,
+           .qty = shares,
+           .order_id = ref,
+           .match_id = match,
+           .tracking_number = tracking,
+           .locate = node.locate,
+           .side = static_cast<std::int8_t>(node.side),
+           .event = 'e',
+           .msg_type = msg_type,
+           .printable = printable});
+  if (sinks_->enabled(Dataset::Trades)) {
+    // The aggressor is on the other side of the resting order.
+    sinks_->push(TradeRecord{.ts = ts,
+                             .seq = static_cast<std::int64_t>(seq_),
+                             .price_ticks = price,
+                             .qty = shares,
+                             .match_id = match,
+                             .locate = node.locate,
+                             .side = static_cast<std::int8_t>(-static_cast<int>(node.side)),
+                             .source = msg_type,
+                             .printable = printable == 'Y'});
+  }
+  emit_bbo(node.locate, timestamp_ns);
+}
+
+void BookManager::emit_bbo(std::uint16_t locate, std::uint64_t timestamp_ns) noexcept {
+  if (!sinks_->enabled(Dataset::Bbo)) {
+    return;
+  }
+  const auto bid = books_[locate].best(Side::Bid).value_or(Level{0, 0, 0});
+  const auto ask = books_[locate].best(Side::Ask).value_or(Level{0, 0, 0});
+  BboRecord& last = last_bbo_[locate];
+  if (bid.price_ticks == last.bid_ticks && bid.qty == last.bid_qty &&
+      ask.price_ticks == last.ask_ticks && ask.qty == last.ask_qty) {
+    return;
+  }
+  last = BboRecord{.ts = sinks_->day().to_utc_ns(timestamp_ns),
+                   .seq = static_cast<std::int64_t>(seq_),
+                   .bid_ticks = bid.price_ticks,
+                   .ask_ticks = ask.price_ticks,
+                   .bid_qty = bid.qty,
+                   .ask_qty = ask.qty,
+                   .bid_orders = bid.orders,
+                   .ask_orders = ask.orders,
+                   .locate = locate};
+  sinks_->push(last);
+}
+
+void BookManager::emit_state(std::uint16_t locate, std::uint64_t timestamp_ns, char msg_type,
+                             char state, std::string_view reason, const char* details) noexcept {
+  if (sinks_ == nullptr || !sinks_->enabled(Dataset::TradingState) ||
+      (locate != 0 && !sinks_->wants(locate))) {
+    return;
+  }
+  StateRecord record{.ts = sinks_->day().to_utc_ns(timestamp_ns),
+                     .seq = static_cast<std::int64_t>(seq_),
+                     .locate = locate,
+                     .msg_type = msg_type,
+                     .state = state};
+  std::copy_n(reason.begin(), std::min(reason.size(), record.reason.size()), record.reason.begin());
+  std::snprintf(record.details.data(), record.details.size(), "%s", details);
+  sinks_->push(record);
+}
+
+void BookManager::take_snapshots(std::uint64_t timestamp_ns) noexcept {
+  // DQ-11: a snapshot at T holds everything up to and including T, so it is taken when the first
+  // message after T arrives and before that message is applied.
+  std::array<Level, 64> levels{};
+  const std::uint64_t interval = sinks_->options().snapshot_interval_ns;
+  const std::size_t depth = std::min(sinks_->options().snapshot_depth, levels.size());
+  while (timestamp_ns > next_snapshot_ns_) {
+    // Nothing rests before the first order, so the empty early boundaries write no rows.
+    const std::int64_t ts = sinks_->day().to_utc_ns(next_snapshot_ns_);
+    for (const std::uint16_t locate : sinks_->wanted_locates()) {
+      for (const Side side : {Side::Bid, Side::Ask}) {
+        const std::size_t count = books_[locate].levels(side, std::span(levels).first(depth));
+        for (std::size_t i = 0; i < count; ++i) {
+          sinks_->push(SnapshotRecord{.ts = ts,
+                                      .price_ticks = levels[i].price_ticks,
+                                      .qty = levels[i].qty,
+                                      .order_count = levels[i].orders,
+                                      .level = static_cast<std::uint16_t>(i),
+                                      .locate = locate,
+                                      .side = static_cast<std::int8_t>(side)});
+        }
+      }
+    }
+    next_snapshot_ns_ += interval;
+  }
 }
 
 void BookManager::check_book(std::uint16_t locate, std::uint64_t timestamp_ns) noexcept {
@@ -382,6 +656,7 @@ void BookManager::reset() noexcept {
   state_.reset();
   counters_ = Counters{};
   broken_matches_.clear();
+  std::fill(last_bbo_.begin(), last_bbo_.end(), BboRecord{});
   seq_ = 0;
   last_timestamp_ = 0;
 }

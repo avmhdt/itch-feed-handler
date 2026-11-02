@@ -2,19 +2,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string_view>
 #include <vector>
 
 #include "itch/book/order_book.hpp"
 #include "itch/book/order_store.hpp"
 #include "itch/check/invariants.hpp"
+#include "itch/out/parquet_sink.hpp"
 #include "itch/proto/messages.hpp"
 #include "itch/state/instruments.hpp"
 #include "itch/state/trading_state.hpp"
 
 namespace itch {
-
-class Sinks;
 
 struct BookConfig {
   OrderMapKind order_map = OrderMapKind::OpenAddressing;
@@ -83,6 +83,9 @@ class BookManager {
       ++counters_.timestamp_regressions;
     }
     last_timestamp_ = timestamp_ns;
+    if (timestamp_ns > next_snapshot_ns_) [[unlikely]] {
+      take_snapshots(timestamp_ns);
+    }
   }
   void check_locate(std::uint16_t locate) noexcept {
     if (!instruments_.defined(locate)) [[unlikely]] {
@@ -97,6 +100,19 @@ class BookManager {
   void classify_touch(const OrderBook& book, std::uint16_t locate,
                       std::uint64_t timestamp_ns) noexcept;
 
+  /// Output is off for most symbols, so each emitter starts with this one test.
+  [[nodiscard]] bool out(std::uint16_t locate) const noexcept {
+    return sinks_ != nullptr && sinks_->wants(locate);
+  }
+  void emit_bbo(std::uint16_t locate, std::uint64_t timestamp_ns) noexcept;
+  void emit_l3(const L3Record& record) noexcept;
+  void emit_exec(const OrderNode& node, std::uint64_t ref, std::uint32_t shares,
+                 std::uint64_t match, std::int64_t price, char printable, char msg_type,
+                 std::uint16_t tracking, std::uint64_t timestamp_ns) noexcept;
+  void emit_state(std::uint16_t locate, std::uint64_t timestamp_ns, char msg_type, char state,
+                  std::string_view reason, const char* details) noexcept;
+  void take_snapshots(std::uint64_t timestamp_ns) noexcept;
+
   OrderStore store_;
   std::vector<OrderBook> books_;
   std::vector<SymbolCounters> symbol_counters_;
@@ -107,7 +123,9 @@ class BookManager {
   std::vector<std::uint64_t> broken_matches_;
   std::uint64_t seq_ = 0;
   std::uint64_t last_timestamp_ = 0;
-  [[maybe_unused]] Sinks* sinks_;
+  Sinks* sinks_;
+  std::vector<BboRecord> last_bbo_;
+  std::uint64_t next_snapshot_ns_ = std::numeric_limits<std::uint64_t>::max();
 };
 
 }  // namespace itch
