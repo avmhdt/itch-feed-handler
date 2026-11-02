@@ -2,7 +2,7 @@
 
 > Parse a real exchange binary protocol and rebuild every order book for a full trading day.
 
-**Status:** planning
+**Status:** in build (M1)
 
 | | |
 |---|---|

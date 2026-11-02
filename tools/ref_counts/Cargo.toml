@@ -1,0 +1,9 @@
+[package]
+name = "ref_counts"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Independent ITCH 5.0 message counts built on the itchy crate"
+publish = false
+
+[dependencies]

@@ -1,5 +1,8 @@
 # Data: never commit raw or licensed data
 data/
+/data
+!tests/data/
+fuzz/corpus-local/
 *.parquet
 *.feather
 *.h5

@@ -1,0 +1,54 @@
+[input]
+mode = "file"                                   # "file" | "udp"
+path = "${ITCH_DATA_DIR}/interim/itch/01302019.NASDAQ_ITCH50"
+date = "2019-01-30"                             # optional; inferred from MMDDYYYY in file name
+timezone = "America/New_York"
+strict = true                                   # DQ-01
+
+[symbols]
+watchlist_file = "configs/watchlist.txt"
+outputs_for = "watchlist"                       # "watchlist" | "all" (D-04); books always built for all
+
+[outputs]
+root = "${ITCH_DATA_DIR}"
+venue = "XNAS"
+datasets = ["book_l3", "trades", "bbo", "bars", "book_snapshots", "trading_state", "noii", "instruments"]
+compression = "zstd"
+compression_level = 3
+row_group_rows = 1_000_000
+queue_capacity = 65_536                         # SPSC records per dataset
+
+[bars]
+intervals = ["1s", "1m"]
+session = "all"                                 # "all" | "rth"
+include_cross = true
+
+[snapshots]
+interval = "1m"
+depth = 10
+
+[checks]
+crossed_book = "count"                          # "off" | "count" | "fail"
+accounting = true
+
+[book]
+order_capacity_hint = 50_000_000
+order_map = "open_addressing"                   # "open_addressing" | "unordered_dense" | "std"
+
+[transport]
+group = "${ITCH_MCAST_GROUP}"
+port = 30001
+iface = "${ITCH_MCAST_IFACE}"
+retrans_port = 30002
+session = "${ITCH_MOLD_SESSION}"
+max_payload = 1400
+rate = "max"
+heartbeat_ms = 1000
+retrans_buffer_msgs = 2_000_000
+rerequest_timeout_ms = 50
+rerequest_max_retries = 20
+
+[drop]
+seed = 42
+random_rate = 0.0
+bursts = []                                     # e.g. [{ at_seq = 5_000_000, packets = 10_000 }]

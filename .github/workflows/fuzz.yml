@@ -1,0 +1,12 @@
+name: fuzz
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "Nightly fuzzing arrives with the harnesses at M2 and M6."

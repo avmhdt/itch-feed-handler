@@ -1,0 +1,5 @@
+# Gap-recovery demo overrides (AC-H-03); filled in at M5.
+[drop]
+seed = 42
+random_rate = 0.01
+bursts = [{ at_seq = 5_000_000, packets = 10_000 }]
