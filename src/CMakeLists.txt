@@ -4,6 +4,10 @@ add_library(itch_core STATIC
   book/order_book.cpp
   book/order_store.cpp
   io/mapped_file.cpp
+  net/drop_plan.cpp
+  net/mold_publisher.cpp
+  net/retransmit_server.cpp
+  net/udp_socket.cpp
   out/parquet_sink.cpp
   state/instruments.cpp
   state/trading_state.cpp
@@ -12,6 +16,8 @@ add_library(itch_core STATIC
 )
 target_include_directories(itch_core PUBLIC ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(itch_core PUBLIC cxx_std_20)
+find_package(Threads REQUIRED)
+target_link_libraries(itch_core PUBLIC Threads::Threads)
 target_link_libraries(itch_core
   PRIVATE unordered_dense::unordered_dense tomlplusplus::tomlplusplus
   PRIVATE Arrow::arrow_shared Parquet::parquet_shared)
@@ -24,6 +30,8 @@ add_executable(itch
   cli/cmd_build.cpp
   cli/cmd_check.cpp
   cli/cmd_digest.cpp
+  cli/cmd_listen.cpp
+  cli/cmd_replay.cpp
   cli/cmd_stats.cpp
   cli/cmd_symbols.cpp
   cli/common.cpp

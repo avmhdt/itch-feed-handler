@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -10,13 +11,14 @@ from typing import Annotated
 import typer
 
 from itchtools import fetch as fetch_module
-from itchtools import gen_fixture, outputs, py_baseline, ref_daily, validate
+from itchtools import figures, gap_report, gen_fixture, outputs, py_baseline, ref_daily, validate
 from itchtools.settings import REPO_ROOT, Settings
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
 VALIDATION_DIR = REPO_ROOT / "results" / "validation"
 CONFIGS_DIR = REPO_ROOT / "configs"
+FIGURES_DIR = REPO_ROOT / "reports" / "figures"
 WATCHLIST = CONFIGS_DIR / "watchlist.txt"
 
 
@@ -173,6 +175,36 @@ def validate_volume(
     )
     typer.echo(f"{date}: {'PASS' if comparison.passed else 'FAIL'}")
     if not comparison.passed:
+        raise typer.Exit(1)
+
+
+@app.command("gap-report")
+def gap_report_command(
+    date: Annotated[str, typer.Option(help="Trading date, YYYY-MM-DD.")],
+    file_digest: Annotated[Path, typer.Option(help="Digest from file mode.")],
+    listen_digest: Annotated[Path, typer.Option(help="Digest from `itch listen`.")],
+    file_counts: Annotated[Path, typer.Option(help="`itch stats` JSON.")],
+    listen_stats: Annotated[Path, typer.Option(help="`itch listen` stats JSON.")],
+    listen_exit: Annotated[int, typer.Option(help="Exit code of the recovery run.")],
+    short_exit: Annotated[int, typer.Option(help="Exit code of the short-window run.")],
+    short_log: Annotated[Path, typer.Option(help="Log of the short-window run.")],
+) -> None:
+    """AC-H-03: write the demo's evidence file and gap timeline figure."""
+    stats = json.loads(listen_stats.read_text(encoding="utf-8"))
+    run = gap_report.GapRun(
+        file_digest.read_text(encoding="utf-8").strip(),
+        listen_digest.read_text(encoding="utf-8").strip(),
+        json.loads(file_counts.read_text(encoding="utf-8")),
+        stats,
+        listen_exit,
+        short_exit,
+        short_log.read_text(encoding="utf-8"),
+    )
+    report = gap_report.build_report(run)
+    path = gap_report.write_report(report, VALIDATION_DIR, date)
+    figures.gap_timeline(stats["timeline"], FIGURES_DIR / "gap_timeline.png")
+    typer.echo(f"{path}: {'PASS' if report['passed'] else 'FAIL'}")
+    if not report["passed"]:
         raise typer.Exit(1)
 
 

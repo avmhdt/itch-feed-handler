@@ -14,6 +14,8 @@ add_executable(itch_unit_tests
   unit/instruments_test.cpp
   unit/mapped_file_test.cpp
   unit/messages_test.cpp
+  unit/mold_receiver_test.cpp
+  unit/moldudp64_test.cpp
   unit/order_book_replace_test.cpp
   unit/order_book_test.cpp
   unit/order_store_test.cpp
@@ -52,6 +54,13 @@ add_test(NAME cli_symbols_fixture
 add_test(NAME build_fixture
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/integration/build_fixture.sh $<TARGET_FILE:itch>
                  ${PROJECT_SOURCE_DIR})
+add_executable(itch_loopback_test integration/loopback_test.cpp)
+target_link_libraries(itch_loopback_test PRIVATE itch_core GTest::gtest_main)
+target_compile_definitions(itch_loopback_test PRIVATE ITCH_FIXTURE_DIR="${FIXTURES}")
+itch_set_warnings(itch_loopback_test)
+add_test(NAME loopback_udp COMMAND itch_loopback_test)
+set_tests_properties(loopback_udp PROPERTIES RUN_SERIAL TRUE)
+
 add_test(NAME book_at_fixture
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/integration/book_fixture.sh $<TARGET_FILE:itch>
                  ${FIXTURES})

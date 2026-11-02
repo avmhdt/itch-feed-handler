@@ -14,93 +14,11 @@
 #include "common.hpp"
 #include "itch/io/file_driver.hpp"
 #include "itch/io/mapped_file.hpp"
+#include "type_counter.hpp"
 
 namespace itch::cli {
 
 namespace {
-
-struct SessionEvent {
-  char code;
-  std::uint64_t timestamp_ns;
-};
-
-/// Parse-only handler: every message is decoded far enough to read its timestamp and is counted
-/// under its type.
-class TypeCounter {
- public:
-  TypeCounter() { events_.reserve(kMaxEvents); }
-
-  template <class View>
-  void on(const View& message) noexcept {
-    ++counts_[static_cast<unsigned char>(View::kType)];
-    last_timestamp_ = message.timestamp_ns();
-    if (!seen_) {
-      seen_ = true;
-      first_timestamp_ = last_timestamp_;
-    }
-  }
-
-  /// System events are also kept, so that reports can show the session times (AC-W-10).
-  void on(const SystemEvent& message) noexcept {
-    if (events_.size() < events_.capacity()) {
-      events_.push_back({message.event_code(), message.timestamp_ns()});
-    }
-    on<SystemEvent>(message);
-  }
-
-  [[nodiscard]] const std::array<std::uint64_t, 256>& counts() const noexcept { return counts_; }
-  [[nodiscard]] const std::vector<SessionEvent>& events() const noexcept { return events_; }
-  [[nodiscard]] std::uint64_t first_timestamp() const noexcept { return first_timestamp_; }
-  [[nodiscard]] std::uint64_t last_timestamp() const noexcept { return last_timestamp_; }
-
- private:
-  static constexpr std::size_t kMaxEvents = 16;
-
-  std::array<std::uint64_t, 256> counts_{};
-  std::vector<SessionEvent> events_;
-  std::uint64_t first_timestamp_ = 0;
-  std::uint64_t last_timestamp_ = 0;
-  bool seen_ = false;
-};
-
-/// Stable, sorted-key JSON. Wall time goes to the log instead, so that two runs on the same input
-/// produce byte-identical reports (NFR-04).
-std::string counts_json(const TypeCounter& counter, const DriveResult& result, std::size_t bytes,
-                        const std::optional<CivilDate>& date) {
-  std::ostringstream json;
-  json << "{\"by_type\":{";
-  bool first = true;
-  for (std::size_t type = 0; type < counter.counts().size(); ++type) {
-    if (counter.counts()[type] == 0) {
-      continue;
-    }
-    json << (first ? "" : ",") << '"' << static_cast<char>(type) << "\":" << counter.counts()[type];
-    first = false;
-  }
-  json << "},\"bytes\":" << bytes << ",\"date\":";
-  if (date) {
-    json << '"' << format_date(*date) << '"';
-  } else {
-    json << "null";
-  }
-  json << ",\"first_timestamp_ns\":" << counter.first_timestamp()
-       << ",\"last_timestamp_ns\":" << counter.last_timestamp()
-       << ",\"malformed\":" << result.malformed << ",\"system_events\":[";
-  first = true;
-  for (const SessionEvent& event : counter.events()) {
-    json << (first ? "" : ",") << "{\"code\":\"" << event.code << "\",\"et\":\""
-         << format_time_of_day(event.timestamp_ns) << "\",\"utc_ns\":";
-    if (date) {
-      json << TradingDay(*date).to_utc_ns(event.timestamp_ns);
-    } else {
-      json << "null";
-    }
-    json << '}';
-    first = false;
-  }
-  json << "],\"total\":" << result.messages << '}';
-  return json.str();
-}
 
 /// M1 data smoke test: frames the file and counts the first byte of each frame, undecoded.
 std::string raw_type_counts_json(std::span<const std::byte> bytes, int& exit_code) {
@@ -153,6 +71,43 @@ struct StatsOptions {
 
 }  // namespace
 
+std::string counts_json(const TypeCounter& counter, std::uint64_t messages, std::uint64_t malformed,
+                        std::size_t bytes, const std::optional<CivilDate>& date) {
+  std::ostringstream json;
+  json << "{\"by_type\":{";
+  bool first = true;
+  for (std::size_t type = 0; type < counter.counts().size(); ++type) {
+    if (counter.counts()[type] == 0) {
+      continue;
+    }
+    json << (first ? "" : ",") << '"' << static_cast<char>(type) << "\":" << counter.counts()[type];
+    first = false;
+  }
+  json << "},\"bytes\":" << bytes << ",\"date\":";
+  if (date) {
+    json << '"' << format_date(*date) << '"';
+  } else {
+    json << "null";
+  }
+  json << ",\"first_timestamp_ns\":" << counter.first_timestamp()
+       << ",\"last_timestamp_ns\":" << counter.last_timestamp() << ",\"malformed\":" << malformed
+       << ",\"system_events\":[";
+  first = true;
+  for (const SessionEvent& event : counter.events()) {
+    json << (first ? "" : ",") << "{\"code\":\"" << event.code << "\",\"et\":\""
+         << format_time_of_day(event.timestamp_ns) << "\",\"utc_ns\":";
+    if (date) {
+      json << TradingDay(*date).to_utc_ns(event.timestamp_ns);
+    } else {
+      json << "null";
+    }
+    json << '}';
+    first = false;
+  }
+  json << "],\"total\":" << messages << '}';
+  return json.str();
+}
+
 void register_stats(CLI::App& app, int& exit_code) {
   auto* command = app.add_subcommand("stats", "Message counts by type");
   auto options = std::make_shared<StatsOptions>();
@@ -181,8 +136,9 @@ void register_stats(CLI::App& app, int& exit_code) {
     const std::chrono::duration<double> wall = std::chrono::steady_clock::now() - start;
 
     spdlog::info("parsed {} messages in {:.3f} s", result.messages, wall.count());
-    emit(options->json_out, counts_json(counter, result, file.bytes().size(),
-                                        resolve_date(options->date, options->path)));
+    emit(options->json_out,
+         counts_json(counter, result.messages, result.malformed, file.bytes().size(),
+                     resolve_date(options->date, options->path)));
     exit_code = finish_run(result);
   });
 }

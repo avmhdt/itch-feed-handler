@@ -17,6 +17,8 @@ int main(int argc, char** argv) {
   itch::cli::register_digest(app, exit_code);
   itch::cli::register_build(app, exit_code);
   itch::cli::register_bars(app, exit_code);
+  itch::cli::register_replay(app, exit_code);
+  itch::cli::register_listen(app, exit_code);
 
   try {
     app.parse(argc, argv);
