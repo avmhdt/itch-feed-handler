@@ -95,5 +95,10 @@ WSL ext4. The Python virtual environment is at `~/build/itch-feed-handler/venv`
 9. **Eastern Time rule.** `TradingDay` applies the US daylight-saving rule in force since 2007
    directly instead of reading a tz database. ITCH 5.0 dates from 2013, so every sample day is
    covered, and `itchtools.timeutil` cross-checks the rule against `zoneinfo`.
-10. **Locate table.** The directory lives in `state/instruments.hpp`, one module beyond the spec's
+10. **Cross settlement (R-10).** DQ-12 closes a cross window at the Q message, but real files send
+    the non-printable executions of a cross after Q, and resumed trading interleaves with them. A
+    book that is crossed or locked when Q prints therefore stays in settlement until it first stops
+    touching, and counts under `crossed_in_settlement`. Any later crossing is a violation. The
+    report gives the longest settlement. See `docs/protocol-notes.md#crosses`.
+11. **Locate table.** The directory lives in `state/instruments.hpp`, one module beyond the spec's
     list, so that `itch symbols` can use it without pulling in the book code.

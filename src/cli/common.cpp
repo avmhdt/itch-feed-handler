@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "commands.hpp"
+#include "itch/io/mapped_file.hpp"
 
 namespace itch::cli {
 
@@ -78,6 +79,54 @@ void ProgressLog::operator()(const DriveResult& result, std::uint64_t offset,
   spdlog::info("msgs={} rate={:.1f}M/s offset={} et={}", result.messages,
                static_cast<double>(result.messages) * 1e-6 / elapsed, offset,
                format_time_of_day(timestamp_ns));
+}
+
+BookRun run_books(const BookRunOptions& options) {
+  const MappedFile file(options.path);
+  BookRun run;
+  run.manager = std::make_unique<BookManager>(
+      BookConfig{parse_order_map(options.order_map), options.order_capacity});
+  ProgressLog progress;
+  BookManager& manager = *run.manager;
+  const auto start = std::chrono::steady_clock::now();
+  run.result = drive(file.bytes(), manager, {.until_timestamp_ns = options.until_timestamp_ns},
+                     [&](const DriveResult& state, std::uint64_t offset) {
+                       progress(state, offset, manager.last_timestamp());
+                     });
+  const std::chrono::duration<double> wall = std::chrono::steady_clock::now() - start;
+  spdlog::info("applied {} messages in {:.3f} s, peak live orders {}", run.result.messages,
+               wall.count(), manager.orders().peak_live());
+  return run;
+}
+
+void add_book_options(CLI::App& command, BookRunOptions& options) {
+  command.add_option("--order-map", options.order_map, "open_addressing, unordered_dense or std");
+  command.add_option("--order-capacity", options.order_capacity, "Expected live orders");
+}
+
+std::uint64_t parse_time_of_day(const std::string& text) {
+  unsigned hours = 0;
+  unsigned minutes = 0;
+  unsigned seconds = 0;
+  int consumed = 0;
+  const int fields =
+      std::sscanf(text.c_str(), "%2u:%2u:%2u%n", &hours, &minutes, &seconds, &consumed);
+  std::uint64_t nanos = 0;
+  bool valid = fields == 3 && hours < 24 && minutes < 60 && seconds < 60;
+  const std::string_view rest = std::string_view(text).substr(static_cast<std::size_t>(consumed));
+  if (valid && !rest.empty()) {
+    valid = rest[0] == '.' && rest.size() >= 2 && rest.size() <= 10;
+    std::uint64_t scale = 100'000'000;
+    for (std::size_t i = 1; valid && i < rest.size(); ++i) {
+      valid = rest[i] >= '0' && rest[i] <= '9';
+      nanos += static_cast<std::uint64_t>(rest[i] - '0') * scale;
+      scale /= 10;
+    }
+  }
+  if (!valid) {
+    throw CLI::ValidationError("--time", "expected HH:MM:SS[.fraction], got " + text);
+  }
+  return ((hours * 3600ULL) + (minutes * 60ULL) + seconds) * 1'000'000'000ULL + nanos;
 }
 
 std::string format_time_of_day(std::uint64_t ns) {

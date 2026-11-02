@@ -55,6 +55,7 @@ def test_committed_fixture_is_current(tmp_path: Path) -> None:
         "golden_stats.json",
         "golden_symbols.json",
         "golden_outcome.json",
+        "golden_book_at.txt",
     ):
         assert (tmp_path / name).read_bytes() == (FIXTURES / name).read_bytes(), name
 

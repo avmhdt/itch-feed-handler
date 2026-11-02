@@ -84,16 +84,23 @@ jobs:
 
   fuzz-smoke:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        harness: [parser, book]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-cpp
       - run: cmake --preset fuzz
       - run: cmake --build --preset fuzz
-      - name: fuzz_parser, 5 minutes
+      - name: fuzz_${{ matrix.harness }}, 5 minutes
+        env:
+          HARNESS: ${{ matrix.harness }}
         run: |
-          mkdir -p "$RUNNER_TEMP/parser"
-          cp fuzz/corpus/parser/* "$RUNNER_TEMP/parser/"
-          "$HOME/build/itch-feed-handler/fuzz/fuzz/fuzz_parser" -max_total_time=300 -timeout=1             -rss_limit_mb=2048 -print_final_stats=1 "$RUNNER_TEMP/parser"
+          mkdir -p "$RUNNER_TEMP/corpus"
+          cp "fuzz/corpus/$HARNESS"/* "$RUNNER_TEMP/corpus/"
+          "$HOME/build/itch-feed-handler/fuzz/fuzz/fuzz_$HARNESS" -max_total_time=300 -timeout=1 \
+            -rss_limit_mb=2048 -print_final_stats=1 "$RUNNER_TEMP/corpus"
 
   python:
     runs-on: ubuntu-24.04

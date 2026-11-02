@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from itchtools import py_baseline
 from itchtools.timeutil import format_et, to_utc_ns
 
 SYMBOL_COUNT = 20
@@ -546,4 +547,22 @@ def generate(out: Path, seed: int = 7, messages: int = DEFAULT_MESSAGES) -> dict
     (out.parent / "golden_symbols.json").write_text(compact(day.symbols()) + "\n", encoding="utf-8")
     outcome = json.dumps(day.outcome(), indent=1, sort_keys=True) + "\n"
     (out.parent / "golden_outcome.json").write_text(outcome, encoding="utf-8")
+    (out.parent / "golden_book_at.txt").write_text(golden_book_at(out), encoding="utf-8")
     return stats
+
+
+def golden_book_at(path: Path) -> str:
+    """The expected `itch book-at` output, from the Python slow book rather than the C++ code."""
+    symbol = symbol_name(1)
+    moment = clock(10, 30)
+    slow = py_baseline.SlowBook()
+    seq = -1
+    for message in py_baseline.frames(py_baseline.open_file(path)):
+        if py_baseline.timestamp(message) > moment:
+            break
+        slow.apply(message)
+        seq += 1
+    header = f"{symbol}  {DEFAULT_DATE} 10:30:00.000000000 ET  as of seq {seq}  state=T  regsho=0"
+    rows = py_baseline.depth_rows(slow.book(symbol), depth=10)
+    noii = slow.noii_text(slow.symbols[symbol])
+    return "\n".join([header, f"NOII: {noii}", *rows]) + "\n"

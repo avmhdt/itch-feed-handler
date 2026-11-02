@@ -21,6 +21,10 @@ void LocateTable::define(const StockDirectory& message) noexcept {
   instrument.defined = true;
 }
 
+void LocateTable::clear() noexcept {
+  std::fill(instruments_.begin(), instruments_.end(), Instrument{});
+}
+
 std::uint16_t LocateTable::find(std::string_view symbol) const noexcept {
   for (const Instrument& instrument : instruments_) {
     if (instrument.defined && instrument.locate != 0 && instrument.symbol() == symbol) {

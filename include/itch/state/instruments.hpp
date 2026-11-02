@@ -39,6 +39,7 @@ class LocateTable {
   LocateTable() : instruments_(kSize) {}
 
   void define(const StockDirectory& message) noexcept;
+  void clear() noexcept;
 
   [[nodiscard]] const Instrument& operator[](std::uint16_t locate) const noexcept {
     return instruments_[locate];

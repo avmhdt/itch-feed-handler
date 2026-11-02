@@ -12,6 +12,9 @@ int main(int argc, char** argv) {
   int exit_code = itch::cli::kExitOk;
   itch::cli::register_stats(app, exit_code);
   itch::cli::register_symbols(app, exit_code);
+  itch::cli::register_book_at(app, exit_code);
+  itch::cli::register_check(app, exit_code);
+  itch::cli::register_digest(app, exit_code);
 
   try {
     app.parse(argc, argv);
