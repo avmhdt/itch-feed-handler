@@ -1,7 +1,7 @@
 """AC-W-06 on real data: L2 depth 10 from `itch book-at` equals the Python slow book.
 
 Local only (marker `data`). One Python pass answers all 25 queries; the C++ side runs once per
-query.
+query, a few at a time.
 """
 
 from __future__ import annotations
@@ -10,7 +10,9 @@ import json
 import os
 import random
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -19,6 +21,7 @@ from itchtools.settings import REPO_ROOT, Settings
 
 DAYS = {"2019-01-30": "01302019", "2019-03-27": "03272019", "2020-01-30": "01302020"}
 QUERY_COUNT = 25
+WORKERS = 5
 OPEN_S = 9 * 3600 + 30 * 60
 CLOSE_S = 16 * 3600
 
@@ -52,19 +55,25 @@ def time_text(ns: int) -> str:
     )
 
 
+def book_at(path: Path, symbol: str, moment: int) -> dict[str, Any]:
+    result = subprocess.run(
+        [itch_binary(), "book-at", "--file", str(path), "--symbol", symbol,
+         "--time", time_text(moment), "--format", "json"],
+        check=True, capture_output=True, text=True,
+    )  # fmt: skip
+    book: dict[str, Any] = json.loads(result.stdout)
+    return book
+
+
 @pytest.mark.data
 @pytest.mark.parametrize("date", sorted(DAYS))
 def test_book_at_matches_the_slow_book(date: str) -> None:
     path = Settings().interim_dir / f"{DAYS[date]}.NASDAQ_ITCH50"
     queries = sampled_queries(seed=int(DAYS[date]))
     slow = py_baseline.snapshots(path, queries)
-    for symbol, moment in queries:
-        result = subprocess.run(
-            [itch_binary(), "book-at", "--file", str(path), "--symbol", symbol,
-             "--time", time_text(moment), "--format", "json"],
-            check=True, capture_output=True, text=True,
-        )  # fmt: skip
-        book = json.loads(result.stdout)
-        for side, key in (("bids", "bids"), ("asks", "asks")):
-            actual = [(lv["price_ticks"], lv["qty"], lv["orders"]) for lv in book[key]]
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        books = list(pool.map(lambda query: book_at(path, *query), queries))
+    for (symbol, moment), book in zip(queries, books, strict=True):
+        for side in ("bids", "asks"):
+            actual = [(lv["price_ticks"], lv["qty"], lv["orders"]) for lv in book[side]]
             assert actual == slow[(symbol, moment)][side], f"{symbol} {time_text(moment)} {side}"
