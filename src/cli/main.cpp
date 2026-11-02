@@ -2,13 +2,16 @@
 #include <iostream>
 
 #include "commands.hpp"
+#include "common.hpp"
 
 int main(int argc, char** argv) {
   CLI::App app{"Nasdaq TotalView-ITCH 5.0 feed handler"};
   app.require_subcommand(1);
+  itch::cli::init_logging();
 
   int exit_code = itch::cli::kExitOk;
   itch::cli::register_stats(app, exit_code);
+  itch::cli::register_symbols(app, exit_code);
 
   try {
     app.parse(argc, argv);

@@ -22,6 +22,7 @@ include(Sanitizers)
 
 CPMAddPackage(NAME CLI11 GITHUB_REPOSITORY CLIUtils/CLI11 VERSION 2.4.2 SYSTEM YES
               OPTIONS "CLI11_BUILD_TESTS OFF" "CLI11_BUILD_EXAMPLES OFF")
+CPMAddPackage(NAME spdlog GITHUB_REPOSITORY gabime/spdlog VERSION 1.14.1 SYSTEM YES)
 
 add_subdirectory(src)
 

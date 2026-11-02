@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
+import re
+import subprocess
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from itchtools import fetch as fetch_module
-from itchtools.settings import Settings
+from itchtools import gen_fixture, validate
+from itchtools.settings import REPO_ROOT, Settings
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
+
+VALIDATION_DIR = REPO_ROOT / "results" / "validation"
+
+
+def date_from_file(path: Path) -> str:
+    """Turns a MMDDYYYY file name prefix into YYYY-MM-DD."""
+    match = re.match(r"(\d{2})(\d{2})(\d{4})", path.name)
+    if match is None:
+        raise typer.BadParameter(f"no MMDDYYYY date in {path.name}")
+    month, day, year = match.groups()
+    return f"{year}-{month}-{day}"
 
 
 @app.command()
@@ -37,10 +52,47 @@ def fetch(
         typer.echo(f"{day}: gz {entry.get('gz_bytes')} bytes, raw {entry.get('raw_bytes')} bytes")
 
 
-@app.command()
-def version() -> None:
-    """Print the tool version."""
-    typer.echo("itchtools 0.1.0")
+@app.command("gen-fixture")
+def gen_fixture_command(
+    out: Annotated[Path, typer.Option(help="Fixture path.")] = (
+        REPO_ROOT / "tests" / "fixtures" / "mini_day.itchbin"
+    ),
+    seed: Annotated[int, typer.Option(help="Random seed.")] = 7,
+    messages: Annotated[int, typer.Option(help="Approximate message count.")] = (
+        gen_fixture.DEFAULT_MESSAGES
+    ),
+) -> None:
+    """Write the deterministic synthetic day and its golden files."""
+    stats = gen_fixture.generate(out, seed=seed, messages=messages)
+    typer.echo(f"{out}: {stats['total']} messages, {stats['bytes']} bytes")
+
+
+@app.command("ref-counts")
+def ref_counts(
+    file: Annotated[Path, typer.Option(help="Uncompressed ITCH file.")],
+    date: Annotated[str | None, typer.Option(help="Trading date, YYYY-MM-DD.")] = None,
+) -> None:
+    """Run the Rust reference counter and store its counts for validate-counts."""
+    settings = Settings()
+    resolved = date or date_from_file(file)
+    out = VALIDATION_DIR / f"ref_counts_{resolved}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [str(settings.itch_ref_parser_bin.expanduser()), str(file), "--json", str(out)],
+        check=True,
+    )
+    typer.echo(f"wrote {out}")
+
+
+@app.command("validate-counts")
+def validate_counts(
+    date: Annotated[str, typer.Option(help="Trading date, YYYY-MM-DD.")],
+) -> None:
+    """AC-W-01: compare `itch stats` with the reference parser."""
+    comparison = validate.validate_counts(date, VALIDATION_DIR)
+    typer.echo(f"{date}: {'PASS' if comparison.matches else 'FAIL'}")
+    if not comparison.matches:
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

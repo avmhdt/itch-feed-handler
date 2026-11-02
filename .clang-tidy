@@ -4,6 +4,7 @@ Checks: >
   bugprone-*,
   performance-*,
   modernize-*,
+  cppcoreguidelines-pro-type-reinterpret-cast,
   -bugprone-easily-swappable-parameters,
   -bugprone-exception-escape,
   -modernize-use-trailing-return-type,
