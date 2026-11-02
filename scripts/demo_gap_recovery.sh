@@ -55,3 +55,20 @@ uv run --project tools itchtools gap-report --date "$date" \
   --file-digest "$work/file_digest.txt" --listen-digest "$work/listen_digest.txt" \
   --file-counts "$work/file_counts.json" --listen-stats "$work/listen_stats.json" \
   --listen-exit "$run1" --short-exit "$run2" --short-log "$work/short.log"
+
+python3 - "results/validation/gap_demo_$date.json" "$day" >>results/experiment_log.csv <<'PY'
+import datetime
+import json
+import subprocess
+import sys
+
+report = json.load(open(sys.argv[1]))
+stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+head = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+rate = round(report["messages"] / report["wall_s"])
+print(
+    f"{stamp},{head},owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,"
+    f"{sys.argv[2]}.NASDAQ_ITCH50,gap_demo,1,{report['messages']},{report['wall_s']},{rate},,,"
+    f"{report['gaps']} gaps; passed={report['passed']}"
+)
+PY
