@@ -10,6 +10,7 @@ Checks: >
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
   -modernize-use-nodiscard,
+  -modernize-raw-string-literal,
   -performance-enum-size
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*/(include/itch|src)/.*'
