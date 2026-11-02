@@ -43,7 +43,7 @@ struct Outcome {
 };
 
 Outcome run(std::span<const std::byte> bytes, std::uint16_t port, itch::DropPlan plan,
-        std::size_t window) {
+            std::size_t window) {
   itch::ListenOptions listen_options;
   listen_options.group = itch::parse_endpoint(group(port));
   listen_options.retrans = itch::parse_endpoint("127.0.0.1:" + std::to_string(port + 1));

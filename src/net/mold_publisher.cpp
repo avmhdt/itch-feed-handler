@@ -32,7 +32,7 @@ class Pacer {
         have_origin_ = true;
         origin_timestamp_ = first_timestamp;
       }
-      const double elapsed_ns = static_cast<double>(first_timestamp - origin_timestamp_);
+      const auto elapsed_ns = static_cast<double>(first_timestamp - origin_timestamp_);
       due += std::chrono::nanoseconds(static_cast<std::int64_t>(elapsed_ns / options_.speed));
     } else if (options_.max_messages_per_s > 0) {
       due += std::chrono::nanoseconds(
