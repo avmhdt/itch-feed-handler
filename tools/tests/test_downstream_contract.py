@@ -25,9 +25,9 @@ def run_query(root: Path, symbol: str) -> tuple[str, float, int]:
         trades=root / "trades" / partition,
         book_l3=root / "book_l3" / partition,
     )
-    row = duckdb.sql(query).fetchone()
-    assert row is not None
-    return row[0], row[1], row[2]
+    rows = duckdb.sql(query).fetchall()
+    assert len(rows) == 1
+    return rows[0][0], rows[0][1], rows[0][2]
 
 
 @pytest.mark.data
