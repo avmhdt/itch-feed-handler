@@ -18,9 +18,15 @@ a ring of atomics, so the retransmission server can read a run of messages witho
 Heartbeats go out while pacing holds the publisher back. At the end, end-of-session packets persist
 for a while so receivers can still fill their last gaps ("End of Session").
 
-`--rate max` sends as fast as allowed, and `--max-msgs-per-s` caps that. On loopback a sender can
-outrun its receiver, and the receiver's rate is limited by the book build, so the demo sets a cap.
-`--rate 10x` paces by ITCH timestamps.
+`--rate max` sends as fast as allowed, and `--max-msgs-per-s` caps that. `--rate 10x` paces by ITCH
+timestamps.
+
+Multicast has no flow control, so a sender can outrun its receiver, and the receiver's rate is the
+book build's. If the sender stays faster for long enough, the receiver falls further behind than
+the retransmission window reaches, and `itch listen` exits with code 5. That happened at 2M msgs/s
+on a busy machine, when the book build ran at about 1.7M msgs/s: the receiver stopped at sequence
+122,029,089 and the server refused 21 requests. The demo therefore paces at 1M msgs/s, which keeps
+the run about recovery rather than about keeping up.
 
 ## Receiver
 

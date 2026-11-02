@@ -16,10 +16,11 @@ file=$data_dir/interim/itch/$day.NASDAQ_ITCH50
 itch=${ITCH_BIN:-$HOME/build/itch-feed-handler/release/src/itch}
 group=${ITCH_MCAST_GROUP:-239.192.0.1}:${ITCH_MCAST_PORT:-30001}
 retrans_port=${ITCH_RETRANS_PORT:-30002}
-rate=${ITCH_DEMO_MSGS_PER_S:-2000000}
+rate=${ITCH_DEMO_MSGS_PER_S:-1000000}
 burst_at=5000000
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+: >"$work/listen_digest.txt"
 
 echo "file-mode digest and counts"
 "$itch" digest --file "$file" --order-capacity 8000000 >"$work/file_digest.txt" 2>/dev/null

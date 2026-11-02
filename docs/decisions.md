@@ -113,3 +113,7 @@ WSL ext4. The Python virtual environment is at `~/build/itch-feed-handler/venv`
     splits, and it lacks delisted names such as ATVI. On 2019-01-30 only 15 of 50 closes matched
     through it. It remains a cross-check; AC-W-02 needs the Sharadar key.
 15. **`--report` on `itch build`.** Added for AC-W-03, along with `--root`, which tests use.
+16. **Gap demo pacing.** Spec AC-H-03 sets no rate. `demo_gap_recovery.sh` paces at 1M msgs/s because
+    at 2M msgs/s the outcome depended on what else the machine was doing. See `docs/transport.md`.
+17. **`itch replay` options.** Added `--max-msgs-per-s`, `--retrans-buffer`, `--limit`, `--linger-ms`
+    and `--session`. A non-multicast `--group` is the R-01 unicast fallback with identical framing.
