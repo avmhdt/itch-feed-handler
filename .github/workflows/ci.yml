@@ -82,6 +82,19 @@ jobs:
             --object-directory "$HOME/build/itch-feed-handler/coverage" \
             "$HOME/build/itch-feed-handler/coverage" --fail-under-line 85 --print-summary
 
+  fuzz-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cpp
+      - run: cmake --preset fuzz
+      - run: cmake --build --preset fuzz
+      - name: fuzz_parser, 5 minutes
+        run: |
+          mkdir -p "$RUNNER_TEMP/parser"
+          cp fuzz/corpus/parser/* "$RUNNER_TEMP/parser/"
+          "$HOME/build/itch-feed-handler/fuzz/fuzz/fuzz_parser" -max_total_time=300 -timeout=1             -rss_limit_mb=2048 -print_final_stats=1 "$RUNNER_TEMP/parser"
+
   python:
     runs-on: ubuntu-24.04
     steps:
@@ -109,11 +122,15 @@ jobs:
             tools/ref_counts/target
           key: cargo-${{ hashFiles('tools/ref_counts/Cargo.lock') }}
       - run: cargo build --release --locked --manifest-path tools/ref_counts/Cargo.toml
+      - name: Counts on the fixture equal the generator's
+        run: |
+          tools/ref_counts/target/release/ref_counts tests/fixtures/mini_day.itchbin > ref.json
+          diff <(jq -cS .by_type ref.json) <(jq -cS .by_type tests/fixtures/golden_stats.json)
 
   # The single required status check for branch protection.
   ci:
     if: always()
-    needs: [hygiene, lint, build-test, sanitizers, coverage, python, rust]
+    needs: [hygiene, lint, build-test, sanitizers, coverage, fuzz-smoke, python, rust]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to succeed
