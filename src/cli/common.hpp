@@ -2,9 +2,13 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 
+#include <CLI/CLI.hpp>
+
+#include "itch/book/book_manager.hpp"
 #include "itch/io/file_driver.hpp"
 #include "itch/util/time.hpp"
 
@@ -32,6 +36,28 @@ class ProgressLog {
  private:
   std::int64_t start_ns_;
 };
+
+/// A book build over a whole file, or up to a time.
+struct BookRun {
+  std::unique_ptr<BookManager> manager;
+  DriveResult result;
+};
+
+struct BookRunOptions {
+  std::string path;
+  std::string order_map = "open_addressing";
+  std::size_t order_capacity = std::size_t{1} << 22;
+  std::uint64_t until_timestamp_ns = kNoTimeLimit;
+};
+
+/// Applies a file to a fresh BookManager, logging progress (NFR-10).
+[[nodiscard]] BookRun run_books(const BookRunOptions& options);
+
+/// Adds the --order-map and --order-capacity options to a command.
+void add_book_options(CLI::App& command, BookRunOptions& options);
+
+/// Parses HH:MM:SS[.fraction] into nanoseconds since midnight.
+[[nodiscard]] std::uint64_t parse_time_of_day(const std::string& text);
 
 /// Formats nanoseconds since midnight as HH:MM:SS.nnnnnnnnn.
 [[nodiscard]] std::string format_time_of_day(std::uint64_t ns);

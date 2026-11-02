@@ -10,7 +10,7 @@ from typing import Annotated
 import typer
 
 from itchtools import fetch as fetch_module
-from itchtools import gen_fixture, validate
+from itchtools import gen_fixture, py_baseline, validate
 from itchtools.settings import REPO_ROOT, Settings
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -65,6 +65,18 @@ def gen_fixture_command(
     """Write the deterministic synthetic day and its golden files."""
     stats = gen_fixture.generate(out, seed=seed, messages=messages)
     typer.echo(f"{out}: {stats['total']} messages, {stats['bytes']} bytes")
+
+
+@app.command("py-baseline")
+def py_baseline_command(
+    file: Annotated[Path, typer.Option(help="Uncompressed ITCH file.")],
+    limit: Annotated[int, typer.Option(help="Messages to read.")] = 20_000_000,
+    book: Annotated[bool, typer.Option("--book", help="Also build books.")] = False,
+) -> None:
+    """Time the pure-Python parser, optionally with the dict-based book."""
+    result = py_baseline.run_baseline(file, limit, book)
+    rate = result.messages_per_second
+    typer.echo(f"{result.messages} messages in {result.seconds:.2f} s, {rate:,.0f} msgs/s")
 
 
 @app.command("ref-counts")
