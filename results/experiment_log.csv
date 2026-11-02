@@ -20,3 +20,4 @@ ts_utc,git_hash,machine,compiler,flags,file,mode,repeat,messages,wall_s,msgs_per
 2026-11-02T06:14:54Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,03272019.NASDAQ_ITCH50,build,1,422264305,294.559,1433547,,,reproduce.sh watchlist Parquet
 2026-11-02T06:19:36Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302020.NASDAQ_ITCH50,check,1,423285709,250.643,1688799,,,reproduce.sh validation
 2026-11-02T06:23:50Z,2a82585,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302020.NASDAQ_ITCH50,build,1,423285709,253.932,1666925,,,reproduce.sh watchlist Parquet
+2026-11-02T06:51:30Z,2ec99a3,owner-desktop-wsl2,gcc-13 release,-O3 -march=x86-64-v3,01302019.NASDAQ_ITCH50,gap_demo,1,368366634,369.253,997600,,,paced at 1M msgs/s; 35758 gaps; passed=True

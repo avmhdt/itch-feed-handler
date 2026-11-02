@@ -2,7 +2,7 @@
 
 > Parse a real exchange binary protocol and rebuild every order book for a full trading day.
 
-**Status:** in build (M4)
+**Status:** in build (M5); M6 waits for a machine with no multi-week capture running
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@
 - [x] Zero-copy parsing of every TotalView-ITCH 5.0 message type (big-endian, fixed width). (FR-02)
 - [x] An order-level book per symbol: add, execute, execute with price, cancel, delete and replace. (FR-05 to FR-09)
 - [x] Handling of trading-state, cross and NOII messages; output of trades, OHLCV and VWAP bars. (FR-10 to FR-16)
-- [ ] A transport layer that replays the file as MoldUDP64 over local UDP multicast, with gap detection and recovery.
+- [x] A transport layer that replays the file as MoldUDP64 over local UDP multicast, with gap detection and recovery. (FR-22 to FR-24)
 - [x] Memory-mapped streaming over multi-GB files, and a CLI that dumps book state at any timestamp. (FR-01, FR-18, AC-W-06)
 
 ## Data
@@ -42,7 +42,7 @@ Raw and licensed data live in `data/`, which is git-ignored. Only download scrip
 
 - [ ] A full day parsed in seconds, with messages per second published for parse-only and full book build, plus flamegraphs.
 - [ ] Benchmarks against a Python baseline and an existing open-source parser.
-- [ ] A gap-recovery demo: drop packets on purpose and show a correct resync.
+- [x] A gap-recovery demo: drop packets on purpose and show a correct resync. (AC-H-03)
 - [ ] A fuzzed parser that never crashes on malformed input.
 
 ## Questions this project must answer

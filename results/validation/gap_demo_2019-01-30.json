@@ -1,0 +1,21 @@
+{
+  "checks": {
+    "counts_equal_file_mode": true,
+    "digest_equals_file_mode": true,
+    "no_unrecovered_gaps": true,
+    "short_window_exits_5": true,
+    "short_window_message_is_clear": true
+  },
+  "digest": "a621884980f50673",
+  "duplicate_packets": 11,
+  "gap_messages": 2096110,
+  "gaps": 35758,
+  "largest_gap": 468063,
+  "messages": 368366634,
+  "overflow_packets": 0,
+  "packets": 8126353,
+  "passed": true,
+  "rerequests": 90820,
+  "timeouts": 11,
+  "wall_s": 369.253
+}
