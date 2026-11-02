@@ -74,7 +74,8 @@ WSL ext4. The Python virtual environment is at `~/build/itch-feed-handler/venv`
    `pigz -dc`, and the clean end of the frame stream. The manifest records
    `gz_md5_source = computed-unverified` and the locally computed md5 and sha256.
 2. **Download cap.** `ITCH_MAX_BYTES_PER_S` (default 10 MB/s) caps `itchtools fetch`, and files go
-   one at a time, because live recorders share the connection.
+   one at a time, because live recorders share the connection. The server delivered about 1.6 MB/s
+   and stalled at times, so the download retries from the bytes on disk.
 3. **`data/` symlink and `.gitignore`.** The existing rule `data/` matches directories only, so a
    symlink would show up as untracked, and it would also hide the spec's `tests/data/`. Added
    `/data` and `!tests/data/`. NFR-09's "under data/" means the top-level path.

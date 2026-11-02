@@ -19,6 +19,9 @@ from typing import Any
 import httpx
 
 CHUNK_BYTES = 1 << 20
+DOWNLOAD_ATTEMPTS = 50
+RETRY_BASE_SECONDS = 5.0
+RETRY_MAX_SECONDS = 60.0
 FILE_SUFFIX = ".NASDAQ_ITCH50"
 MANIFEST_NAME = "manifest.json"
 
@@ -95,8 +98,32 @@ def save_manifest(raw_dir: Path, manifest: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def download(client: httpx.Client, url: str, dest: Path, limiter: RateLimiter) -> None:
-    """Stream `url` to `dest`, resuming a previous `.part` file with a range request."""
+def download(
+    client: httpx.Client,
+    url: str,
+    dest: Path,
+    limiter: RateLimiter,
+    *,
+    attempts: int = DOWNLOAD_ATTEMPTS,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Stream `url` to `dest`, resuming after a dropped connection.
+
+    The sample server stalls now and then on multi-hour transfers, so a transport error is retried
+    from the bytes already on disk.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            download_once(client, url, dest, limiter)
+            return
+        except httpx.TransportError:
+            if attempt == attempts:
+                raise
+            sleep(min(RETRY_BASE_SECONDS * attempt, RETRY_MAX_SECONDS))
+
+
+def download_once(client: httpx.Client, url: str, dest: Path, limiter: RateLimiter) -> None:
+    """One attempt at `url`, continuing any `.part` file with a range request."""
     part = dest.with_name(dest.name + ".part")
     head = client.head(url)
     head.raise_for_status()

@@ -124,6 +124,42 @@ def test_short_download_is_an_error(tmp_path: Path) -> None:
         run(tmp_path, httpx.MockTransport(handle))
 
 
+def test_transport_errors_are_retried_from_the_bytes_on_disk(tmp_path: Path) -> None:
+    calls = {"gets": 0}
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.method == "HEAD":
+            return httpx.Response(200, headers={"content-length": str(len(BODY))})
+        calls["gets"] += 1
+        if calls["gets"] == 1:
+            raise httpx.ReadTimeout("stalled", request=request)
+        return httpx.Response(200, content=BODY)
+
+    dest = tmp_path / GZ
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        fetch.download(client, "https://example.test/x", dest, RateLimiter(0), sleep=lambda _: None)
+    assert dest.read_bytes() == BODY
+    assert calls["gets"] == 2
+
+
+def test_transport_errors_give_up_after_the_last_attempt(tmp_path: Path) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    with (
+        httpx.Client(transport=httpx.MockTransport(handle)) as client,
+        pytest.raises(httpx.ConnectError),
+    ):
+        fetch.download(
+            client,
+            "https://example.test/x",
+            tmp_path / GZ,
+            RateLimiter(0),
+            attempts=2,
+            sleep=lambda _: None,
+        )
+
+
 def test_second_run_downloads_nothing(tmp_path: Path) -> None:
     run(tmp_path, server(md5_body=MD5))
     seen: list[httpx.Request] = []
