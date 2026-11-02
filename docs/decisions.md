@@ -102,3 +102,14 @@ WSL ext4. The Python virtual environment is at `~/build/itch-feed-handler/venv`
     report gives the longest settlement. See `docs/protocol-notes.md#crosses`.
 11. **Locate table.** The directory lives in `state/instruments.hpp`, one module beyond the spec's
     list, so that `itch symbols` can use it without pulling in the book code.
+12. **Bars at end of day.** Bars come from the corrected trades in the end-of-day pass instead of
+    being updated on the hot thread, because a Broken Trade can remove a trade from any earlier bar.
+    FR-10 and FR-14 ask for that result, and this is the simplest way to get it exactly.
+13. **Reports stay aggregate-only.** `DECISIONS.md` limits publishing of Sharadar-derived data to
+    aggregates and overrides the spec's "comparison tables". `closing_cross_<date>.md` and
+    `volume_<date>.md` therefore show match counts, ratio summaries and symbol-level explanations,
+    never a reference price or volume. Per-symbol figures stay in `data/reports/`.
+14. **Stooq cannot satisfy AC-W-02 alone.** The snapshot is adjusted for dividends as well as
+    splits, and it lacks delisted names such as ATVI. On 2019-01-30 only 15 of 50 closes matched
+    through it. It remains a cross-check; AC-W-02 needs the Sharadar key.
+15. **`--report` on `itch build`.** Added for AC-W-03, along with `--root`, which tests use.

@@ -22,3 +22,26 @@ very little. Levels further out fall back to binary search. Each level is a FIFO
 through the pool.
 
 Prices and shares stay integers throughout (NFR-05).
+
+## Outputs
+
+The hot thread pushes fixed-size records onto one bounded SPSC queue per dataset, and a writer
+thread turns them into Arrow tables and partitioned Parquet, so Arrow never appears on the hot path.
+`Sinks` is the only type that knows about it.
+
+Trades stay in memory until the end of the day, because a Broken Trade (1.5.3) can arrive at any
+time and a Parquet file cannot be edited. The correction pass flags broken rows, writes `trades`, and
+only then builds `bars` from the corrected rows. Bars therefore run on the writer side at the end of
+the day, not on the hot thread as the spec sketches. The internal volume counter stays on the hot
+thread, so AC-W-03 compares two independent paths.
+
+Consumers read datasets by partition. This DuckDB query is exercised by
+`tools/tests/test_downstream_contract.py`:
+
+```sql
+SELECT symbol,
+       SUM(qty) FILTER (WHERE printable AND NOT broken) AS volume
+FROM read_parquet('data/trades/venue=XNAS/symbol=AAPL/date=2019-01-30/*.parquet',
+                  hive_partitioning = true)
+GROUP BY symbol;
+```

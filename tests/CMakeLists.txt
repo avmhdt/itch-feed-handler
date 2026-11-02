@@ -6,7 +6,9 @@ CPMAddPackage(NAME rapidcheck GITHUB_REPOSITORY emil-e/rapidcheck
 include(GoogleTest)
 
 add_executable(itch_unit_tests
+  unit/bars_test.cpp
   unit/book_manager_test.cpp
+  unit/config_test.cpp
   unit/endian_test.cpp
   unit/frame_reader_test.cpp
   unit/instruments_test.cpp
@@ -19,6 +21,7 @@ add_executable(itch_unit_tests
   unit/time_test.cpp
 )
 target_link_libraries(itch_unit_tests PRIVATE itch_core GTest::gtest_main)
+target_compile_definitions(itch_unit_tests PRIVATE ITCH_REPO_DIR="${PROJECT_SOURCE_DIR}")
 itch_set_warnings(itch_unit_tests)
 gtest_discover_tests(itch_unit_tests DISCOVERY_MODE PRE_TEST)
 
@@ -46,6 +49,9 @@ add_test(NAME cli_stats_fixture
 add_test(NAME cli_symbols_fixture
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/integration/symbols_fixture.sh $<TARGET_FILE:itch>
                  ${FIXTURES})
+add_test(NAME build_fixture
+         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/integration/build_fixture.sh $<TARGET_FILE:itch>
+                 ${PROJECT_SOURCE_DIR})
 add_test(NAME book_at_fixture
          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/integration/book_fixture.sh $<TARGET_FILE:itch>
                  ${FIXTURES})

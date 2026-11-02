@@ -102,6 +102,20 @@ jobs:
           "$HOME/build/itch-feed-handler/fuzz/fuzz/fuzz_$HARNESS" -max_total_time=300 -timeout=1 \
             -rss_limit_mb=2048 -print_final_stats=1 "$RUNNER_TEMP/corpus"
 
+  schema:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cpp
+      - uses: astral-sh/setup-uv@v6
+      - run: cmake --preset release -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13
+      - run: cmake --build --preset release --target itch
+      - name: Parquet outputs against the canonical schemas
+        working-directory: tools
+        run: |
+          uv sync --python 3.12 --locked
+          ITCH_BIN="$HOME/build/itch-feed-handler/release/src/itch" uv run pytest tests/test_schemas.py -q
+
   python:
     runs-on: ubuntu-24.04
     steps:
@@ -137,7 +151,7 @@ jobs:
   # The single required status check for branch protection.
   ci:
     if: always()
-    needs: [hygiene, lint, build-test, sanitizers, coverage, fuzz-smoke, python, rust]
+    needs: [hygiene, lint, build-test, sanitizers, coverage, fuzz-smoke, schema, python, rust]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every job to succeed
