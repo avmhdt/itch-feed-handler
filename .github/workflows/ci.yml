@@ -1,0 +1,126 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check_repo_hygiene.sh
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cpp
+      - name: clang-format
+        run: git ls-files '*.cpp' '*.hpp' | xargs clang-format-18 --dry-run --Werror
+      - name: Configure
+        run: cmake --preset debug -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+      - name: clang-tidy
+        run: |
+          git ls-files 'src/*.cpp' | xargs -P 4 -n 4 \
+            clang-tidy-18 --quiet -p "$HOME/build/itch-feed-handler/debug"
+
+  build-test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - { cc: gcc-13, cxx: g++-13 }
+          - { cc: clang-18, cxx: clang++-18 }
+        preset: [debug, release]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cpp
+      - name: Configure
+        run: >
+          cmake --preset ${{ matrix.preset }}
+          -DCMAKE_C_COMPILER=${{ matrix.compiler.cc }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cxx }}
+      - run: cmake --build --preset ${{ matrix.preset }}
+      - run: ctest --preset ${{ matrix.preset }} -LE data
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [asan, tsan]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cpp
+      - run: cmake --preset ${{ matrix.preset }}
+      - run: cmake --build --preset ${{ matrix.preset }}
+      - run: ctest --preset ${{ matrix.preset }} -LE data
+
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cpp
+      - run: pipx install gcovr==8.3
+      - run: cmake --preset coverage
+      - run: cmake --build --preset coverage
+      - run: ctest --preset coverage -LE data
+      - name: Line coverage of src/ excluding src/cli/
+        run: |
+          gcovr --root . --gcov-executable gcov-13 \
+            --filter 'src/' --exclude 'src/cli/' \
+            --object-directory "$HOME/build/itch-feed-handler/coverage" \
+            "$HOME/build/itch-feed-handler/coverage" --fail-under-line 85 --print-summary
+
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: tools/uv.lock
+      - run: uv sync --project tools --python 3.12 --locked
+      - run: uv run --project tools ruff check tools
+      - run: uv run --project tools ruff format --check tools
+      - run: uv run --project tools mypy --config-file tools/pyproject.toml tools/src
+      - name: pytest with coverage
+        working-directory: tools
+        run: uv run pytest --cov=itchtools --cov-report=term-missing --cov-fail-under=85
+
+  rust:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            tools/ref_counts/target
+          key: cargo-${{ hashFiles('tools/ref_counts/Cargo.lock') }}
+      - run: cargo build --release --locked --manifest-path tools/ref_counts/Cargo.toml
+
+  # The single required status check for branch protection.
+  ci:
+    if: always()
+    needs: [hygiene, lint, build-test, sanitizers, coverage, python, rust]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every job to succeed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for result in $RESULTS; do
+            [ "$result" = "success" ] || exit 1
+          done

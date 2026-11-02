@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.itchbin binary
+*.png binary
+*.svg text eol=lf
+fuzz/corpus/** binary

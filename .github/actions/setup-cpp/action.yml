@@ -1,0 +1,16 @@
+name: setup-cpp
+description: Install the C++ toolchain and restore the CPM dependency cache
+runs:
+  using: composite
+  steps:
+    - name: Install packages
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq ninja-build gcc-13 g++-13 clang-18 clang-format-18 \
+          clang-tidy-18 libclang-rt-18-dev lld-18
+    - uses: actions/cache@v4
+      with:
+        path: .cpm-cache
+        key: cpm-${{ hashFiles('CMakeLists.txt', 'tests/CMakeLists.txt', 'src/CMakeLists.txt') }}
+        restore-keys: cpm-
