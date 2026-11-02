@@ -11,6 +11,10 @@
 
 namespace itch {
 
+// NFR-11: the fast path assumes a little-endian host, and load_be_portable stays compiled and
+// tested as the fallback for any other.
+static_assert(std::endian::native == std::endian::little);
+
 /// Reverses the bytes of an unsigned integer. std::byteswap is C++23, so it is used only when the
 /// standard library provides it.
 template <std::unsigned_integral T>
@@ -46,13 +50,9 @@ template <std::unsigned_integral T>
 /// this goes through std::memcpy rather than a pointer cast (ITCH 5.0 "Data Types").
 template <std::unsigned_integral T>
 [[nodiscard]] inline T load_be(const std::byte* p) noexcept {
-  if constexpr (std::endian::native == std::endian::little) {
-    T value;
-    std::memcpy(&value, p, sizeof(T));
-    return bswap(value);
-  } else {
-    return load_be_portable<T>(p);
-  }
+  T value;
+  std::memcpy(&value, p, sizeof(T));
+  return bswap(value);
 }
 
 /// Loads a 48-bit big-endian integer, the width of every ITCH timestamp.

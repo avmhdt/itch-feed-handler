@@ -2,7 +2,7 @@
 
 > Parse a real exchange binary protocol and rebuild every order book for a full trading day.
 
-**Status:** in build (M1)
+**Status:** in build (M2)
 
 | | |
 |---|---|
@@ -14,7 +14,7 @@
 
 ## Requirements
 
-- [ ] Zero-copy parsing of every TotalView-ITCH 5.0 message type (big-endian, fixed width).
+- [x] Zero-copy parsing of every TotalView-ITCH 5.0 message type (big-endian, fixed width). (FR-02)
 - [ ] An order-level book per symbol: add, execute, execute with price, cancel, delete and replace.
 - [ ] Handling of trading-state, cross and NOII messages; output of trades, OHLCV and VWAP bars.
 - [ ] A transport layer that replays the file as MoldUDP64 over local UDP multicast, with gap detection and recovery.
@@ -34,7 +34,7 @@ Raw and licensed data live in `data/`, which is git-ignored. Only download scrip
 
 ### Works (correct and reproducible)
 
-- [ ] Message counts by type match a reference parser across the whole file.
+- [x] Message counts by type match a reference parser across the whole file. (AC-W-01)
 - [ ] Closing-cross prices and daily volumes match official figures for liquid symbols.
 - [ ] Books never cross outside auctions, and every order is accounted for at the end of the day.
 
