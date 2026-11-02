@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 option(ITCH_BUILD_TESTS "Build unit, property and integration tests" ON)
 option(ITCH_BUILD_FUZZ "Build libFuzzer harnesses (Clang only)" OFF)
