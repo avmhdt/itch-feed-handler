@@ -33,10 +33,9 @@ TEST(Intervals, Parse) {
 }
 
 TEST(Bars, OhlcvAndVwapWithinOneInterval) {
-  const std::vector<TradeRecord> trades{trade(kTenOClock + 1, 100'0000, 100),
-                                        trade(kTenOClock + 2, 102'0000, 100),
-                                        trade(kTenOClock + 3, 99'0000, 200),
-                                        trade(kTenOClock + 4, 101'0000, 100)};
+  const std::vector<TradeRecord> trades{
+      trade(kTenOClock + 1, 100'0000, 100), trade(kTenOClock + 2, 102'0000, 100),
+      trade(kTenOClock + 3, 99'0000, 200), trade(kTenOClock + 4, 101'0000, 100)};
   const auto bars = itch::build_bars(trades, kDay, {});
   ASSERT_EQ(bars.size(), 1U);
   const itch::BarRecord& bar = bars[0];

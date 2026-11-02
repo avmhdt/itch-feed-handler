@@ -233,7 +233,11 @@ SchemaPtr instruments_schema() {
   });
 }
 
-std::string one_char(char c) { return std::string(1, c); }
+std::string one_char(char c) {
+  std::string text;
+  text.push_back(c);
+  return text;
+}
 
 std::shared_ptr<arrow::Table> l3_table(const std::vector<L3Record>& rows, const std::string& venue,
                                        const std::string& symbol) {
