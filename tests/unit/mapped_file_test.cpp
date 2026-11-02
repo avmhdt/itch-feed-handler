@@ -38,4 +38,8 @@ TEST_F(MappedFileTest, MissingFileThrows) {
   EXPECT_THROW(itch::MappedFile{path_ / "missing"}, std::system_error);
 }
 
+TEST_F(MappedFileTest, UnmappableFileThrows) {
+  EXPECT_THROW(itch::MappedFile{std::filesystem::temp_directory_path()}, std::system_error);
+}
+
 }  // namespace
