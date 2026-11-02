@@ -104,16 +104,16 @@ std::string report_json(const CheckOptions& options, const BookRun& run,
   } else {
     json << "null";
   }
+  std::string_view longest_symbol;
+  if (counters.longest_settlement_locate != 0) {
+    longest_symbol = manager.instruments()[counters.longest_settlement_locate].symbol();
+  }
   json << ",\"duplicate_adds\":" << counters.duplicate_adds
        << ",\"locked_in_auction\":" << counters.locked_in_auction
        << ",\"locked_in_settlement\":" << counters.locked_in_settlement
        << ",\"locked_outside_auction\":" << counters.locked_outside_auction
        << ",\"longest_settlement_ns\":" << counters.longest_settlement_ns
-       << ",\"longest_settlement_symbol\":\""
-       << (counters.longest_settlement_locate != 0
-               ? manager.instruments()[counters.longest_settlement_locate].symbol()
-               : std::string_view{})
-       << "\""
+       << ",\"longest_settlement_symbol\":\"" << longest_symbol << '"'
        << ",\"messages\":" << run.result.messages << ",\"orphans\":" << counters.orphans
        << ",\"over_executions\":" << counters.over_executions
        << ",\"peak_live_orders\":" << manager.orders().peak_live()
