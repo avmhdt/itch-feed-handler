@@ -91,6 +91,7 @@ std::string report_json(const CheckOptions& options, const BookRun& run,
        << ",\"broken_trades\":" << counters.broken_trades
        << ",\"crossed_in_auction\":" << counters.crossed_in_auction
        << ",\"crossed_outside_auction\":" << counters.crossed_outside_auction
+       << ",\"crossed_in_settlement\":" << counters.crossed_in_settlement
        << ",\"crossed_samples\":[";
   for (std::size_t i = 0; i < counters.crossed_sample_count; ++i) {
     const CrossedSample& sample = counters.crossed_samples[i];
@@ -105,7 +106,14 @@ std::string report_json(const CheckOptions& options, const BookRun& run,
   }
   json << ",\"duplicate_adds\":" << counters.duplicate_adds
        << ",\"locked_in_auction\":" << counters.locked_in_auction
+       << ",\"locked_in_settlement\":" << counters.locked_in_settlement
        << ",\"locked_outside_auction\":" << counters.locked_outside_auction
+       << ",\"longest_settlement_ns\":" << counters.longest_settlement_ns
+       << ",\"longest_settlement_symbol\":\""
+       << (counters.longest_settlement_locate != 0
+               ? manager.instruments()[counters.longest_settlement_locate].symbol()
+               : std::string_view{})
+       << "\""
        << ",\"messages\":" << run.result.messages << ",\"orphans\":" << counters.orphans
        << ",\"over_executions\":" << counters.over_executions
        << ",\"peak_live_orders\":" << manager.orders().peak_live()

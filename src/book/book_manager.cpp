@@ -28,6 +28,7 @@ BookManager::BookManager(const BookConfig& config, Sinks* sinks)
     : store_(config.order_map, config.order_capacity_hint),
       books_(LocateTable::kSize, OrderBook(store_)),
       symbol_counters_(LocateTable::kSize),
+      settling_since_ns_(LocateTable::kSize, 0),
       sinks_(sinks) {
   broken_matches_.reserve(kMaxBrokenMatches);
 }
@@ -166,15 +167,11 @@ void BookManager::on(const OrderExecutedPrice& message) {
   const std::uint32_t taken = take_shares(index, message.executed_shares());
   SymbolCounters& counters = symbol_counters_[locate];
   counters.executed += taken;
-  // ITCH 5.0 1.4.2: non-printable executions are part of a bulk print. They can arrive just after
-  // the Q message, while the book is still unwinding the cross, so a touching book seen here is
-  // settlement of that cross and not a continuous-trading violation.
+  // ITCH 5.0 1.4.2: non-printable executions are part of a bulk print and count only there.
   if (message.printable() == 'Y') {
     counters.volume += taken;
-    check_book(locate, message.timestamp_ns());
-  } else if (books_[locate].touching()) {
-    ++(books_[locate].crossed() ? counters_.crossed_in_auction : counters_.locked_in_auction);
   }
+  check_book(locate, message.timestamp_ns());
   ++seq_;
 }
 
@@ -251,6 +248,10 @@ void BookManager::on(const CrossTrade& message) noexcept {
   counters.volume += shares;
   counters.cross_volume += shares;
   state_.on(message);
+  // A book still crossed at the print is unwinding this cross; see docs/protocol-notes.md#crosses.
+  if (books_[message.stock_locate()].touching()) {
+    settling_since_ns_[message.stock_locate()] = message.timestamp_ns() + 1;
+  }
   ++seq_;
 }
 
@@ -286,6 +287,8 @@ void BookManager::check_book(std::uint16_t locate, std::uint64_t timestamp_ns) n
   const OrderBook& book = books_[locate];
   if (book.touching()) [[unlikely]] {
     classify_touch(book, locate, timestamp_ns);
+  } else if (settling_since_ns_[locate] != 0) [[unlikely]] {
+    settling_since_ns_[locate] = 0;
   }
 }
 
@@ -297,6 +300,18 @@ void BookManager::classify_touch(const OrderBook& book, std::uint16_t locate,
                           !state_.in_cross_window(locate, instruments_[locate], timestamp_ns);
   if (!continuous) {
     ++(crossed ? counters_.crossed_in_auction : counters_.locked_in_auction);
+    return;
+  }
+  // Only what would otherwise be a violation reaches this test, so the longest settlement measures
+  // exactly what the rule excuses.
+  const std::uint64_t settling_since = settling_since_ns_[locate];
+  if (settling_since != 0) {
+    ++(crossed ? counters_.crossed_in_settlement : counters_.locked_in_settlement);
+    const std::uint64_t elapsed = timestamp_ns + 1 - settling_since;
+    if (elapsed > counters_.longest_settlement_ns) {
+      counters_.longest_settlement_ns = elapsed;
+      counters_.longest_settlement_locate = locate;
+    }
     return;
   }
   SymbolCounters& per_symbol = symbol_counters_[locate];
@@ -362,6 +377,7 @@ void BookManager::reset() noexcept {
     book.clear();
   }
   std::fill(symbol_counters_.begin(), symbol_counters_.end(), SymbolCounters{});
+  std::fill(settling_since_ns_.begin(), settling_since_ns_.end(), 0);
   instruments_.clear();
   state_.reset();
   counters_ = Counters{};

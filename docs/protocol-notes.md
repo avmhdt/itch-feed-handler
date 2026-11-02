@@ -41,8 +41,11 @@ An Order Replace (1.4.5) ends the original order and starts a new one under a ne
   executions (1.4.2), which are not counted again in volume (DQ-09).
 - The order on the wire is not the order the name "later bulk print" suggests. On 2019-01-30 SXTC
   reopened from an LULD pause with Q, then H, and only then a run of about 30 non-printable C
-  messages over 100 microseconds, during which the book was still crossed. DQ-12 says the window
-  closes at Q, which alone would report 61 crossed-book violations that day, all on this
-  settlement. So a touching book right after a non-printable execution counts as auction activity:
-  1.4.2 defines those executions as part of a cross. Every other message on a crossed book is
-  still a violation, and a unit test pins that down.
+  messages over 100 microseconds, during which the book was still crossed. On 2019-03-27 RBZ and on
+  2020-01-30 DTSS, RKDA, BDTX and ANPC did the same, and because trading had resumed, ordinary
+  quotes and small printable executions landed among those messages.
+- DQ-12 closes the window at Q, which alone reports each of those as a violation. So settlement is
+  modelled as state: a book still crossed or locked when Q prints is unwinding that cross until it
+  first stops touching, and those events count under `crossed_in_settlement`. After that, any
+  crossing is a violation. The rule only applies to a book that was already crossed at the print,
+  and `itch check` reports the longest settlement, so an unwinding that never ended would stand out.

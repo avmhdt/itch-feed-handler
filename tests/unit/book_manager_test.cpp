@@ -230,6 +230,7 @@ TEST_F(BookManagerTest, CrossedInsideTheOpeningWindowIsAllowed) {
   EXPECT_EQ(counters().crossed_outside_auction, 0U);
 
   feed(cross('O', 100, at(9, 30)));
+  feed(deleted(1, at(9, 30)));
   feed(add(1, 3, 'B', 100, 1001, at(9, 31)));
   EXPECT_EQ(counters().crossed_outside_auction, 1U);
 }
@@ -263,6 +264,7 @@ TEST_F(BookManagerTest, ClosingNoiiOpensTheClosingWindow) {
   feed(add(1, 2, 'S', 100, 990, at(15, 49)));
   EXPECT_EQ(counters().crossed_in_auction, 1U);
   feed(cross('C', 100, at(16, 0)));
+  feed(deleted(1, at(16, 0)));
   feed(add(1, 3, 'B', 100, 1001, at(16, 1)));
   EXPECT_EQ(counters().crossed_outside_auction, 1U);
 }
@@ -280,33 +282,56 @@ TEST_F(BookManagerTest, HaltIsAWindowUntilResume) {
   feed(add(1, 3, 'B', 100, 1001, at(11, 3)));
   EXPECT_EQ(counters().crossed_in_auction, 1U + 1U);
   feed(cross('H', 100, at(11, 4)));
+  feed(deleted(1, at(11, 4)));
+  feed(deleted(3, at(11, 4)));
   feed(add(1, 4, 'B', 100, 1002, at(11, 5)));
   EXPECT_EQ(counters().crossed_outside_auction, 1U);
 }
 
-TEST_F(BookManagerTest, NonPrintableExecutionsAfterTheCrossPrintAreSettlement) {
-  // Real order on a halt cross: Q, then the resume, then the non-printable executions.
+TEST_F(BookManagerTest, ACrossedBookSettlesAfterTheCrossPrint) {
+  // Real order on a halt cross: Q, then the resume, then the executions that unwind the cross,
+  // with ordinary quotes and trades arriving among them.
   feed(cross('O', 0, at(9, 30)));
   feed(action(1, 'H', at(11, 0)));
   feed(add(1, 1, 'B', 100, 1000, at(11, 1)));
   feed(add(1, 2, 'S', 100, 990, at(11, 1)));
   feed(add(1, 3, 'S', 100, 995, at(11, 1)));
-  feed(cross('H', 100, at(11, 5)));
-  feed(action(1, 'T', at(11, 5)));
+  const std::uint64_t printed = at(11, 5);
+  feed(cross('H', 100, printed));
+  feed(action(1, 'T', printed));
 
-  feed(executed_price(2, 50, 'N', at(11, 5)));
+  feed(executed_price(2, 50, 'N', printed + 100));
+  feed(add(1, 4, 'B', 10, 900, printed + 200));
+  feed(executed(2, 1, printed + 300));
   EXPECT_EQ(counters().crossed_outside_auction, 0U);
-  EXPECT_EQ(counters().crossed_in_auction, 3U);
+  EXPECT_EQ(counters().crossed_in_settlement, 3U);
+  EXPECT_EQ(counters().longest_settlement_ns, 300U);
+  EXPECT_EQ(counters().longest_settlement_locate, 1);
 
-  // Any other message on a book that is still crossed counts.
-  feed(add(1, 4, 'B', 10, 900, at(11, 5)));
+  // The book uncrosses, which ends settlement.
+  feed(executed_price(1, 100, 'N', printed + 400));
+  EXPECT_FALSE(manager_->book(1).touching());
+  feed(add(1, 5, 'B', 100, 1000, printed + 500));
   EXPECT_EQ(counters().crossed_outside_auction, 1U);
+}
 
-  feed(executed_price(2, 50, 'N', at(11, 5)));
-  feed(executed_price(1, 50, 'N', at(11, 5)));
-  feed(executed_price(3, 50, 'N', at(11, 5)));
-  feed(executed_price(1, 50, 'N', at(11, 5)));
+TEST_F(BookManagerTest, ACrossPrintOnAnOpenBookStartsNoSettlement) {
+  feed(cross('O', 0, at(9, 30)));
+  feed(add(1, 1, 'B', 100, 1000, at(10, 0)));
+  feed(add(1, 2, 'S', 100, 1010, at(10, 0)));
+  feed(cross('H', 0, at(10, 1)));
+  feed(add(1, 3, 'B', 100, 1020, at(10, 2)));
   EXPECT_EQ(counters().crossed_outside_auction, 1U);
+  EXPECT_EQ(counters().crossed_in_settlement, 0U);
+}
+
+TEST_F(BookManagerTest, LockedDuringSettlementIsCountedApart) {
+  feed(cross('O', 0, at(9, 30)));
+  feed(add(1, 1, 'B', 100, 1000, at(11, 0)));
+  feed(add(1, 2, 'S', 100, 1000, at(11, 0)));
+  feed(cross('H', 0, at(11, 1)));
+  feed(add(1, 3, 'S', 100, 1010, at(11, 1)));
+  EXPECT_EQ(counters().locked_in_settlement, 1U);
 }
 
 TEST_F(BookManagerTest, BrokenTradesAreRemembered) {

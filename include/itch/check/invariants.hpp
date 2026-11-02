@@ -27,8 +27,9 @@ struct CrossedSample {
   std::uint16_t locate = 0;
 };
 
-/// Day counters (DQ-03 to DQ-06 and DQ-12). Every one of these except the in-auction and locked
-/// counts is expected to be zero; a non-zero value is investigated, never filtered out.
+/// Day counters (DQ-03 to DQ-06 and DQ-12). Every one of these except the in-auction, settlement
+/// and locked counts is expected to be zero; a non-zero value is investigated, never filtered out.
+/// The longest settlement is reported so that an unusually long one stands out.
 struct Counters {
   static constexpr std::size_t kMaxSamples = 32;
 
@@ -41,6 +42,10 @@ struct Counters {
   std::uint64_t crossed_in_auction = 0;
   std::uint64_t locked_outside_auction = 0;
   std::uint64_t locked_in_auction = 0;
+  std::uint64_t crossed_in_settlement = 0;
+  std::uint64_t locked_in_settlement = 0;
+  std::uint64_t longest_settlement_ns = 0;
+  std::uint16_t longest_settlement_locate = 0;
   std::uint64_t broken_trades = 0;
   std::array<CrossedSample, kMaxSamples> crossed_samples{};
   std::size_t crossed_sample_count = 0;

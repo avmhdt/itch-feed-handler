@@ -100,6 +100,7 @@ class BookManager {
   OrderStore store_;
   std::vector<OrderBook> books_;
   std::vector<SymbolCounters> symbol_counters_;
+  std::vector<std::uint64_t> settling_since_ns_;  // Cross print time + 1, or 0 when not settling.
   LocateTable instruments_;
   TradingState state_;
   Counters counters_;
