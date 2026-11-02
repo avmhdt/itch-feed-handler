@@ -284,6 +284,31 @@ TEST_F(BookManagerTest, HaltIsAWindowUntilResume) {
   EXPECT_EQ(counters().crossed_outside_auction, 1U);
 }
 
+TEST_F(BookManagerTest, NonPrintableExecutionsAfterTheCrossPrintAreSettlement) {
+  // Real order on a halt cross: Q, then the resume, then the non-printable executions.
+  feed(cross('O', 0, at(9, 30)));
+  feed(action(1, 'H', at(11, 0)));
+  feed(add(1, 1, 'B', 100, 1000, at(11, 1)));
+  feed(add(1, 2, 'S', 100, 990, at(11, 1)));
+  feed(add(1, 3, 'S', 100, 995, at(11, 1)));
+  feed(cross('H', 100, at(11, 5)));
+  feed(action(1, 'T', at(11, 5)));
+
+  feed(executed_price(2, 50, 'N', at(11, 5)));
+  EXPECT_EQ(counters().crossed_outside_auction, 0U);
+  EXPECT_EQ(counters().crossed_in_auction, 3U);
+
+  // Any other message on a book that is still crossed counts.
+  feed(add(1, 4, 'B', 10, 900, at(11, 5)));
+  EXPECT_EQ(counters().crossed_outside_auction, 1U);
+
+  feed(executed_price(2, 50, 'N', at(11, 5)));
+  feed(executed_price(1, 50, 'N', at(11, 5)));
+  feed(executed_price(3, 50, 'N', at(11, 5)));
+  feed(executed_price(1, 50, 'N', at(11, 5)));
+  EXPECT_EQ(counters().crossed_outside_auction, 1U);
+}
+
 TEST_F(BookManagerTest, BrokenTradesAreRemembered) {
   feed(broken(77, at(16, 0)));
   EXPECT_EQ(counters().broken_trades, 1U);

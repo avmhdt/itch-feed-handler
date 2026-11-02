@@ -166,11 +166,15 @@ void BookManager::on(const OrderExecutedPrice& message) {
   const std::uint32_t taken = take_shares(index, message.executed_shares());
   SymbolCounters& counters = symbol_counters_[locate];
   counters.executed += taken;
-  // ITCH 5.0 1.4.2: non-printable executions are part of a later bulk print.
+  // ITCH 5.0 1.4.2: non-printable executions are part of a bulk print. They can arrive just after
+  // the Q message, while the book is still unwinding the cross, so a touching book seen here is
+  // settlement of that cross and not a continuous-trading violation.
   if (message.printable() == 'Y') {
     counters.volume += taken;
+    check_book(locate, message.timestamp_ns());
+  } else if (books_[locate].touching()) {
+    ++(books_[locate].crossed() ? counters_.crossed_in_auction : counters_.locked_in_auction);
   }
-  check_book(locate, message.timestamp_ns());
   ++seq_;
 }
 

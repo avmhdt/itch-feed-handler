@@ -39,3 +39,10 @@ An Order Replace (1.4.5) ends the original order and starts a new one under a ne
   the symbol can come before the Q message (1.5.2).
 - Cross Trade (1.5.2) is the bulk print. Shares matched in a cross also appear as non-printable
   executions (1.4.2), which are not counted again in volume (DQ-09).
+- The order on the wire is not the order the name "later bulk print" suggests. On 2019-01-30 SXTC
+  reopened from an LULD pause with Q, then H, and only then a run of about 30 non-printable C
+  messages over 100 microseconds, during which the book was still crossed. DQ-12 says the window
+  closes at Q, which alone would report 61 crossed-book violations that day, all on this
+  settlement. So a touching book right after a non-printable execution counts as auction activity:
+  1.4.2 defines those executions as part of a cross. Every other message on a crossed book is
+  still a violation, and a unit test pins that down.
