@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     itch_days: str = "01302019,03272019,01302020"
     itch_keep_gz: bool = True
     itch_max_bytes_per_s: int = 10_000_000
+    sharadar_api_key: str = ""
+    stooq_dir: Path = Path("/mnt/e/trading-strategy-brainstorm/data/stooq")
     itch_ref_parser_bin: Path = (
         Path.home() / "build" / "itch-feed-handler" / "cargo" / "release" / "ref_counts"
     )
@@ -29,6 +31,10 @@ class Settings(BaseSettings):
     @property
     def raw_dir(self) -> Path:
         return self.itch_data_dir.expanduser() / "raw" / "itch"
+
+    @property
+    def reference_dir(self) -> Path:
+        return self.itch_data_dir.expanduser() / "reference"
 
     @property
     def interim_dir(self) -> Path:
